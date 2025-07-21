@@ -25,7 +25,8 @@ weaponinfo_s WeaponInfoTable[MAX_WEAPONS] =
     { TYPE_SNIPER,    10.0f,  125.0f,   3.0f,  200.0f,   3 }, // SNIPER
     { TYPE_AUTO,      20.0f,   80.0f,   3.0f,  150.0f,   6 }, // ASSAULT
     { TYPE_GRENADE,    5.0f,   30.0f,   3.0f,   50.0f,   1 }, // GRENADE
-    { TYPE_AUTO,       0.0f,   50.0f,   3.0f,   50.0f,   0 }  // AKIMBO
+    { TYPE_AUTO,       0.0f,   50.0f,   3.0f,   50.0f,   0 }, // AKIMBO
+    { TYPE_NORMAL,     3.5f,   15.0f,   3.0f,   60.0f,   6 }  // FLINTLOCK
 };
 
 // Code of CACBot - Start

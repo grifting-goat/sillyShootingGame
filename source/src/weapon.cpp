@@ -8,6 +8,8 @@ VARP(autoreload, 0, 1, 1);
 VARP(akimboautoswitch, 0, 1, 1);
 VARP(akimboendaction, 0, 3, 3); // 0: switch to knife, 1: stay with pistol (if has ammo), 2: switch to grenade (if possible), 3: switch to primary (if has ammo) - all fallback to previous one w/o ammo for target
 
+extern int bulletpenetration;
+
 struct sgray {
     int ds; // damage flag: 0:outer, 1:medium, 2:center
     vec rv; // ray vector
@@ -15,7 +17,7 @@ struct sgray {
 
 sgray sgr[SGRAYS*3];
 
-int burstshotssettings[NUMGUNS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, };
+int burstshotssettings[NUMGUNS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, };
 
 bool quicknade = false;
 
@@ -54,6 +56,13 @@ void selectweapon(weapon *w)
     if(!w || !player1->weaponsel->deselectable() || ispaused || intermission) return;
     if(w->selectable())
     {
+        // If sprinting, queue the weapon switch for after sprint ends
+        if(player1->sprinting)
+        {
+            player1->pending_weapon_switch = w;
+            return;
+        }
+        
         if(player1->attacking && player1->state == CS_ALIVE) attack(false);
         int i = w->type;
         // substitute akimbo
@@ -129,16 +138,16 @@ void quicknadethrow(bool on)
     {
         if(player1->weapons[GUN_GRENADE]->mag > 0)
         {
-            if(player1->weaponsel->type != GUN_GRENADE) selectweapon(player1->weapons[GUN_GRENADE]);
-            if(player1->weaponsel->type == GUN_GRENADE || player1->nextweaponsel->type == GUN_GRENADE)
+            if(player1->weaponsel && player1->weaponsel->type != GUN_GRENADE) selectweapon(player1->weapons[GUN_GRENADE]);
+            if((player1->weaponsel && player1->weaponsel->type == GUN_GRENADE) || (player1->nextweaponsel && player1->nextweaponsel->type == GUN_GRENADE))
             {
-                if(!(player1->weaponsel->type == GUN_GRENADE && player1->nextweaponsel->type != GUN_GRENADE)) attack(true);
+                if(!((player1->weaponsel && player1->weaponsel->type == GUN_GRENADE) && (player1->nextweaponsel && player1->nextweaponsel->type != GUN_GRENADE))) attack(true);
             }
         }
     }
     else
     {
-        if(player1->weaponsel->type == GUN_GRENADE || player1->nextweaponsel->type == GUN_GRENADE)
+        if((player1->weaponsel && player1->weaponsel->type == GUN_GRENADE) || (player1->nextweaponsel && player1->nextweaponsel->type == GUN_GRENADE))
         {
             attack(false);
             quicknade = true;
@@ -188,10 +197,10 @@ void createrays(const vec &from, const vec &to) // create random spread of rays 
         int wrange;
         switch(k)
         {
-            case 0:  base = SGCObase / 100.0f; wrange = SGCOrange; break;
-            case 1:  base = SGCMbase / 100.0f; wrange = SGCMrange; break;
+            case 0:  base = SGCObase / 100.0f; wrange = SGCOrange; break;  // OUTER ring
+            case 1:  base = SGCMbase / 100.0f; wrange = SGCMrange; break;   // MEDIUM ring
             case 2:
-            default: base = SGCCbase / 100.0f; wrange = SGCCrange; break;
+            default: base = SGCCbase / 100.0f; wrange = SGCCrange; break;   // CENTER ring
         }
         float rnddir = rndscale(PI2);
         loopi(SGRAYS)
@@ -596,12 +605,18 @@ void hit(int damage, playerent *d, playerent *at, const vec &vel, int gun, bool 
     {
         extern int hitsound;
         extern int lasthit;
+        extern int lastdamageflash;
+        extern int lastdamageamount;
+        extern int lastheadshotflash;
         if(hitsound == 2 && lasthit != lastmillis)
         {
             defformatstring(hitsnd)("sound %d %d;", S_HITSOUND, SP_HIGHEST);
             addsleep(60, hitsnd);
             lasthit = lastmillis;
         }
+        // Set crosshair damage flash with damage amount
+        lastdamageflash = lastmillis;
+        lastdamageamount = damage;
     }
 
     if(!m_mp(gamemode)) dodamage(damage, d, at, gun, gib);
@@ -768,11 +783,13 @@ void addgib(playerent *d)
 
 void shorten(const vec &from, vec &target, float distsquared)
 {
+
     target.sub(from);
     float m = target.squaredlen();
     if(m < 0.07f) target.add(vec(0.1f, 0.1f, 0.1f));   // if "from == target" just fake a target to avoid zero-length fx vectors
     else target.mul(max(0.07f, sqrtf(distsquared / m)));
     target.add(from);
+
 }
 
 void raydamage(vec &from, vec &to, playerent *d)
@@ -840,8 +857,35 @@ void raydamage(vec &from, vec &to, playerent *d)
                 dmg4r += (SGCMdmg / 10.0f * SGDMGTOTAL / 100.0f) * numhits_m / 21.0f;
                 dmg4r += (SGCCdmg / 10.0f * SGDMGTOTAL / 100.0f) * numhits_c / 21.0f;
                 dmgreal = (int) ceil(dmg4r);
+                if(dmgreal > 99) dmgreal = 99;  // Cap shotgun damage at 99
                 int info = (withBONUS ? SGDMGBONUS : 0) | (numhits_c << 8) | (numhits_m << 16) | (numhits_o << 24);
-                if(numhits) hitpush(dmgreal, o, d, from, to, d->weaponsel->type, numhits == SGRAYS * 3, info);
+                
+                // Check for shotgun crosshair effects
+                if(d == player1 && o && numhits)
+                {
+                    extern int lastkillflash;
+                    extern int lastheadshotflash;
+                    extern int lastheadshot;
+                    bool isHeadshot = (dmgreal > 70); // Shotgun headshot if damage > 70
+                    
+                    if(isHeadshot && o->health <= dmgreal)
+                    {
+                        // Lethal headshot with shotgun
+                        lastheadshot = lastmillis;
+                    }
+                    else if(isHeadshot && o->health > dmgreal)
+                    {
+                        // Non-lethal headshot with shotgun
+                        lastheadshotflash = lastmillis;
+                    }
+                    else if(!isHeadshot && o->health <= dmgreal)
+                    {
+                        // Regular shotgun kill (non-headshot)
+                        lastkillflash = lastmillis;
+                    }
+                }
+                
+                if(numhits) hitpush(dmgreal, o, d, from, to, d->weaponsel->type, false, info);
 
                 if(d == player1) hit = true;
                 hitscount+=numhits;
@@ -852,12 +896,45 @@ void raydamage(vec &from, vec &to, playerent *d)
     else if((o = intersectclosest(from, to, d, distsquared, hitzone)))
     {
         bool gib = false;
+        bool isHeadshot = (hitzone == 2);
+        int originalDamage = dam;
+        
         switch(d->weaponsel->type)
         {
             case GUN_KNIFE: gib = true; break;
-            case GUN_SNIPER: if(d==player1 && hitzone==2) { dam *= 3; gib = true; }; break;
+            case GUN_SNIPER: if(d==player1 && hitzone==2) { dam *= 3.0f; gib = true; }; break;
+            case GUN_ASSAULT: if(d==player1 && hitzone==2) { dam *= 2.0f; gib = true; }; break;
+            case GUN_CARBINE: if(d==player1 && hitzone==2) { dam *= 2.0f; gib = true; }; break;
+            case GUN_SUBGUN: if(d==player1 && hitzone==2) { dam *= 1.3f; gib = false; }; break;
+            case GUN_PISTOL: if(d==player1 && hitzone==2) { dam *= 2.25f; gib = true; }; break;
+            case GUN_AKIMBO: if(d==player1 && hitzone==2) { dam *= 1.5f; gib = true; }; break;
+            case GUN_FLINTLOCK: if(d==player1 && hitzone==2) { dam *= 3.0f; gib = true; }; break;
             default: break;
         }
+        
+        // Check for crosshair effects
+        extern int lastheadshotflash;
+        extern int lastkillflash;
+        extern int lastheadshot;
+        if(d == player1 && o)
+        {
+            if(isHeadshot && o->health <= dam)
+            {
+                // Lethal headshot - trigger gold spinning effect
+                lastheadshot = lastmillis;
+            }
+            else if(isHeadshot && o->health > dam)
+            {
+                // Non-lethal headshot - trigger gold flash effect
+                lastheadshotflash = lastmillis;
+            }
+            else if(!isHeadshot && o->health <= dam)
+            {
+                // Regular kill (non-headshot) - trigger red kill effect
+                lastkillflash = lastmillis;
+            }
+        }
+        
         bool info = gib;
         hitpush(dam, o, d, from, to, d->weaponsel->type, gib, info ? 1 : 0);
         if(d == player1) hit = true;
@@ -933,11 +1010,11 @@ COMMAND(accuracyreset, "");
 // weapon
 
 weapon::weapon(class playerent *owner, int type) : type(type), owner(owner), info(guns[type]),
-    ammo(owner->ammo[type]), mag(owner->mag[type]), gunwait(owner->gunwait[type]), reloading(0)
+    ammo(owner->ammo[type]), mag(owner->mag[type]), gunwait(owner->gunwait[type]), reloading(0), mag_before_reload(0)
 {
 }
 
-const int weapon::weaponchangetime = 400;
+const int weapon::weaponchangetime = 50;
 const float weapon::weaponbeloweye = 0.2f;
 
 int weapon::flashtime() const { return max((int)info.attackdelay, 120)/4; }
@@ -967,12 +1044,14 @@ void weapon::attacksound()
 
 bool weapon::reload(bool autoreloaded)
 {
-    if(mag>=info.magsize || ammo<=0) return false;
+    int effective_magsize = m_botslowtdm ? 1 : info.magsize;
+    if(mag>=effective_magsize || ammo<=0) return false;
     updatelastaction(owner);
+    mag_before_reload = mag; // Store original mag count before reload
     reloading = lastmillis;
     gunwait += info.reloadtime;
 
-    int numbullets = min(info.magsize - mag, ammo);
+    int numbullets = min(effective_magsize - mag, ammo);
     mag += numbullets;
     ammo -= numbullets;
 
@@ -991,7 +1070,8 @@ VARP(oldfashionedgunstats, 0, 0, 1);
 void weapon::renderstats()
 {
     string gunstats;
-    if(oldfashionedgunstats) formatstring(gunstats)("%d/%d", mag, ammo); else formatstring(gunstats)("%d", mag);
+    int display_mag = reloading ? mag_before_reload : mag; // Show original mag count during reload
+    if(oldfashionedgunstats) formatstring(gunstats)("%d/%d", display_mag, ammo); else formatstring(gunstats)("%d", display_mag);
     draw_text(gunstats, HUDPOS_WEAPON + HUDPOS_NUMBERSPACING, 823);
     if(!oldfashionedgunstats)
     {
@@ -1030,12 +1110,14 @@ void weapon::attackphysics(vec &from, vec &to) // physical fx to the owner
     if(recoiltest)
     {
         owner->vel.add(vec(unitv).mul(recoil/dist).mul(owner->crouching ? 0.75 : 1.0f));
+            // Reset time in air when entity gets damaged
         owner->pitchvel = min(powf(shots/(float)(recoilincrease), 2.0f)+(float)(recoilbase)/10.0f, (float)(maxrecoil)/10.0f);
     }
     else
     {
         owner->vel.add(vec(unitv).mul(recoil/dist).mul(owner->crouching ? 0.75 : 1.0f));
-        owner->pitchvel = min(powf(shots/(float)(g.recoilincrease), 2.0f)+(float)(g.recoilbase)/10.0f, (float)(g.maxrecoil)/10.0f);
+        owner->timeinair -= (owner->timeinair > 0 ? (owner->timeinair)/5.0f : 0); // Reset time in air when entity gets damaged
+        //owner->pitchvel = min(powf(shots/(float)(g.recoilincrease), 2.0f)+(float)(g.recoilbase)/10.0f, (float)(g.maxrecoil)/10.0f);
     }
 }
 
@@ -1070,13 +1152,23 @@ void weapon::onselecting(bool sound)
 void weapon::renderhudmodel() { renderhudmodel(owner->lastaction); }
 void weapon::renderaimhelp(bool teamwarning)
 {
-    if(!editmode) drawcrosshair(owner, teamwarning ? CROSSHAIR_TEAMMATE : owner->weaponsel->type);
-    else drawcrosshair(owner, CROSSHAIR_EDIT);
+    extern int lastdamageflash;
+    color *damagecolor = NULL;
+    color redflash(1.0f, 0.0f, 0.0f);
+    
+    // Flash red for 200ms after dealing damage
+    if(lastmillis - lastdamageflash < 200)
+    {
+        damagecolor = &redflash;
+    }
+    
+    if(!editmode) drawcrosshair(owner, teamwarning ? CROSSHAIR_TEAMMATE : owner->weaponsel->type, damagecolor);
+    else drawcrosshair(owner, CROSSHAIR_EDIT, damagecolor);
 }
 int weapon::dynspread() { return info.spread; }
 float weapon::dynrecoil() { return info.recoil; }
 bool weapon::selectable() { return this != owner->weaponsel && owner->state == CS_ALIVE && !owner->weaponchanging; }
-bool weapon::deselectable() { return !reloading; }
+bool weapon::deselectable() { return true; }
 
 void weapon::equipplayer(playerent *pl)
 {
@@ -1084,12 +1176,14 @@ void weapon::equipplayer(playerent *pl)
     pl->weapons[GUN_ASSAULT] = new assaultrifle(pl);
     pl->weapons[GUN_GRENADE] = new grenades(pl);
     pl->weapons[GUN_KNIFE] = new knife(pl);
+    pl->weapons[GUN_HANDS] = new hands(pl);
     pl->weapons[GUN_PISTOL] = new pistol(pl);
     pl->weapons[GUN_CARBINE] = new carbine(pl);
     pl->weapons[GUN_SHOTGUN] = new shotgun(pl);
     pl->weapons[GUN_SNIPER] = new sniperrifle(pl);
     pl->weapons[GUN_SUBGUN] = new subgun(pl);
     pl->weapons[GUN_AKIMBO] = new akimbo(pl);
+    pl->weapons[GUN_FLINTLOCK] = new flintlock(pl);
     pl->selectweapon(GUN_ASSAULT);
     pl->setprimary(GUN_ASSAULT);
     pl->setnextprimary(GUN_ASSAULT);
@@ -1222,7 +1316,7 @@ bool grenades::attack(vec &targ)
     vec &vel = targ;
 
     bool waitdone = attackmillis>=gunwait && !(m_arena && m_teammode && arenaintermission);
-    if(waitdone) gunwait = reloading = 0;
+    if(waitdone) gunwait = reloading = mag_before_reload = 0;
 
     switch(state)
     {
@@ -1377,7 +1471,7 @@ bool gun::attack(vec &targ)
 {
     int attackmillis = lastmillis-owner->lastaction - gunwait;
     if(attackmillis<0) return false;
-    gunwait = reloading = 0;
+    gunwait = reloading = mag_before_reload = 0;
 
     if(!owner->attacking)
     {
@@ -1468,13 +1562,13 @@ void shotgun::attackfx(const vec &from, const vec &to, int millis)
     attacksound();
 }
 
-bool shotgun::selectable() { return weapon::selectable() && !m_noprimary && this == owner->primweap; }
+bool shotgun::selectable() { return weapon::selectable() && ((!m_noprimary && this == owner->primweap) || this == owner->secweap); }
 
 
 // subgun
 
 subgun::subgun(playerent *owner) : gun(owner, GUN_SUBGUN) {}
-bool subgun::selectable() { return weapon::selectable() && !m_noprimary && this == owner->primweap; }
+bool subgun::selectable() { return weapon::selectable() && ((!m_noprimary && this == owner->primweap) || this == owner->secweap); }
 int subgun::dynspread() { return shots > 2 ? 70 : ( info.spread + ( shots > 0 ? ( shots == 1 ? 5 : 10 ) : 0 ) ); } // CHANGED: 2010nov19 was: min(info.spread + 10 * shots, 80)
 
 
@@ -1502,7 +1596,7 @@ bool sniperrifle::reload(bool autoreloaded)
     return r;
 }
 
-#define SCOPESETTLETIME 180
+#define SCOPESETTLETIME 1
 int sniperrifle::dynspread()
 {
     if(scoped)
@@ -1516,7 +1610,7 @@ int sniperrifle::dynspread()
     return info.spread;
 }
 float sniperrifle::dynrecoil() { return scoped && lastmillis - scoped_since > SCOPESETTLETIME ? info.recoil / 3 : info.recoil; }
-bool sniperrifle::selectable() { return weapon::selectable() && !m_noprimary && this == owner->primweap; }
+bool sniperrifle::selectable() { return weapon::selectable() && ((!m_nopistol && this == owner->primweap) || this == owner->secweap); }
 void sniperrifle::onselecting(bool sound) { weapon::onselecting(sound); scoped = false; player1->scoping = false; }
 void sniperrifle::ondeselecting() { scoped = false; owner->scoping = false; }
 void sniperrifle::onownerdies() { shots = 0; scoped = false; owner->scoping = false; }
@@ -1524,12 +1618,24 @@ void sniperrifle::renderhudmodel() { if(!scoped) weapon::renderhudmodel(); }
 
 void sniperrifle::renderaimhelp(bool teamwarning)
 {
+    extern int lastdamageflash;
+    color *damagecolor = NULL;
+    color redflash(1.0f, 0.0f, 0.0f);
+    
+    // Flash red for 200ms after dealing damage
+    if(lastmillis - lastdamageflash < 200)
+    {
+        damagecolor = &redflash;
+    }
+    
     if(scoped) drawscope();
     if(!editmode)
     {
-        if(scoped || teamwarning) drawcrosshair(owner, teamwarning ? CROSSHAIR_TEAMMATE : CROSSHAIR_SCOPE, NULL, 24.0f);
+        if(teamwarning) drawcrosshair(owner, CROSSHAIR_TEAMMATE, damagecolor, 24.0f);
+        else if(scoped) drawcrosshair(owner, CROSSHAIR_SCOPE, damagecolor, 24.0f);
+        else drawcrosshair(owner, CROSSHAIR_DEFAULT, damagecolor);
     }
-    else drawcrosshair(owner, CROSSHAIR_EDIT);
+    else drawcrosshair(owner, CROSSHAIR_EDIT, damagecolor);
 }
 
 void sniperrifle::setscope(bool enable)
@@ -1546,7 +1652,7 @@ void sniperrifle::setscope(bool enable)
 
 carbine::carbine(playerent *owner) : gun(owner, GUN_CARBINE) {}
 
-bool carbine::selectable() { return weapon::selectable() && !m_noprimary && this == owner->primweap; }
+bool carbine::selectable() { return weapon::selectable() && ((!m_noprimary && this == owner->primweap) || this == owner->secweap); }
 
 
 // assaultrifle
@@ -1555,12 +1661,17 @@ assaultrifle::assaultrifle(playerent *owner) : gun(owner, GUN_ASSAULT) {}
 
 int assaultrifle::dynspread() { return shots > 2 ? 55 : ( info.spread + ( shots > 0 ? ( shots == 1 ? 5 : 15 ) : 0 ) ); }
 float assaultrifle::dynrecoil() { return info.recoil + (rnd(8)*-0.01f); }
-bool assaultrifle::selectable() { return weapon::selectable() && !m_noprimary && this == owner->primweap; }
+bool assaultrifle::selectable() { return weapon::selectable() && ((!m_noprimary && this == owner->primweap) || this == owner->secweap); }
 
 // pistol
 
 pistol::pistol(playerent *owner) : gun(owner, GUN_PISTOL) {}
-bool pistol::selectable() { return weapon::selectable() && !m_nopistol; }
+bool pistol::selectable() { return weapon::selectable() && ((!m_noprimary && this == owner->primweap) || (!m_nopistol && this == owner->secweap)); }
+
+// flintlock
+
+flintlock::flintlock(playerent *owner) : gun(owner, GUN_FLINTLOCK) {}
+bool flintlock::selectable() { return weapon::selectable() && ((!m_noprimary && this == owner->primweap) || (!m_nopistol && this == owner->secweap)); }
 
 
 // akimbo
@@ -1620,7 +1731,7 @@ bool knife::attack(vec &targ)
 {
     int attackmillis = lastmillis-owner->lastaction - gunwait;
     if(attackmillis<0) return false;
-    gunwait = reloading = 0;
+    gunwait = reloading = mag_before_reload = 0;
 
     if(!owner->attacking) return false;
 
@@ -1660,6 +1771,24 @@ void knife::drawstats() {}
 void knife::attackfx(const vec &from, const vec &to, int millis) { attacksound(); }
 void knife::renderstats() { }
 
+// hands (null weapon state for sprinting)
+
+hands::hands(playerent *owner) : weapon(owner, GUN_HANDS) {}
+
+int hands::flashtime() const { return 0; }
+
+bool hands::attack(vec &targ)
+{
+    // Hands cannot attack - do nothing
+    return false;
+}
+
+int hands::modelanim() { return ANIM_IDLE; } // Use idle animation for hands
+
+void hands::attackfx(const vec &from, const vec &to, int millis) { } // No attack effects
+
+void hands::renderstats() { } // No stats to render
+
 
 void setscope(bool enable)
 {
@@ -1691,7 +1820,7 @@ void checkakimbo()
             player1->akimbo = false;
             a.reset();
 
-            if(player1->weaponsel->type==GUN_AKIMBO || (player1->weaponchanging && player1->nextweaponsel->type==GUN_AKIMBO))
+            if((player1->weaponsel && player1->weaponsel->type==GUN_AKIMBO) || (player1->weaponchanging && player1->nextweaponsel && player1->nextweaponsel->type==GUN_AKIMBO))
             {
                 switch(isdeadorspect ? 1 : akimboendaction)
                 {

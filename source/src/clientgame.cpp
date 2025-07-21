@@ -26,6 +26,11 @@ vector<playerent *> players;                  // other clients
 
 int lastmillis = 0, totalmillis = 0, skipmillis = 0;
 int lasthit = 0;
+int lastdamageflash = 0;
+int lastdamageamount = 0;
+int lastheadshot = 0; // New: track lethal headshots
+int lastheadshotflash = 0; // New: track non-lethal headshots
+int lastkillflash = 0; // New: track regular kills (non-headshot)
 int curtime = 0;
 string clientmap = "";
 int spawnpermission = SP_WRONGMAP;
@@ -260,6 +265,8 @@ void playerinfo(int *cn, const char *attr)
         ATTR_INT(primary, p->primary);
         ATTR_INT(curweapon, p->weaponsel->type);
         ATTR_INT(nextprimary, p->nextprimary);
+        ATTR_INT(secondary, p->secondary);
+        ATTR_INT(nextsecondary, p->nextsecondary);
     }
 
     if(p == player1
@@ -970,7 +977,13 @@ void dokill(playerent *pl, playerent *act, bool gib, int gun)
 
     if(gib)
     {
-        if(pl!=act && gun == GUN_SNIPER) audiomgr.playsound(S_HEADSHOT, SP_LOW);
+        if(pl!=act && (gun == GUN_SNIPER || gun == GUN_ASSAULT || gun == GUN_CARBINE || gun == GUN_PISTOL || gun == GUN_AKIMBO)) 
+        {
+            audiomgr.playsound(S_HEADSHOT, SP_LOW);
+            // Trigger headshot crosshair effect for the player who made the shot
+            extern void triggerheadshoteffect();
+            if(act == player1) triggerheadshoteffect();
+        }
         addgib(pl);
     }
 

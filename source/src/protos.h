@@ -887,6 +887,7 @@ extern void physicsframe();
 extern void mousemove(int idx, int idy);
 extern void fixcamerarange(physent *cam = camera1);
 extern void updatecrouch(playerent *p, bool on);
+extern void updatesprint(playerent *p, bool on);
 extern bool objcollide(physent *d, const vec &objpos, float objrad, float objheight);
 extern bool collide(physent *d, bool spawn = false, float drop = 0, float rise = 0);
 extern void attack(bool on);

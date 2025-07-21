@@ -3199,6 +3199,7 @@ void process(ENetPacket *packet, int sender, int chan)
             filterlang(cl->lang, text);
             int wantrole = getint(p), np = getint(p);
             cl->state.nextprimary = np > 0 && np < NUMGUNS ? np : GUN_ASSAULT;
+            cl->state.nextsecondary = GUN_PISTOL; // Default secondary for backward compatibility
             loopi(2) cl->skin[i] = getint(p);
             cl->maxroll = getint(p);
             cl->maxrolleffect = getint(p);
@@ -3559,6 +3560,14 @@ void process(ENetPacket *packet, int sender, int chan)
                 int nextprimary = getint(p);
                 if(!valid_weapon(nextprimary)) break;
                 cl->state.nextprimary = nextprimary;
+                break;
+            }
+
+            case SV_SECONDARYWEAP:
+            {
+                int nextsecondary = getint(p);
+                if(!valid_weapon(nextsecondary)) break;
+                cl->state.nextsecondary = nextsecondary;
                 break;
             }
 

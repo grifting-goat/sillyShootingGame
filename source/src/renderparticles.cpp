@@ -620,6 +620,7 @@ VARP(bulletbouncesound, 0, 1, 1);
 VARP(bullethole, 0, 1, 1);
 VARP(bulletholettl, 0, 10000, 30000);
 VARP(bulletbouncesoundrad, 0, 15, 1000);
+VARP(bulletpenetration, 0, 0, 1);
 
 bool addbullethole(dynent *d, const vec &from, const vec &to, float radius, bool noisy)
 {

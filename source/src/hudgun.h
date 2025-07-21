@@ -20,6 +20,14 @@ struct weaponmove
         kick = k_rot = 0.0f;
         pos = p->o;
 
+        // If no weapon selected (hands-only state), use minimal animation
+        if(!p->weaponsel)
+        {
+            anim = ANIM_GUN_IDLE;
+            basetime = lastaction;
+            return;
+        }
+
         if(!nosway)
         {
             float k = pow(0.7f, (lastmillis-lastsway)/10.0f);

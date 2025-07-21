@@ -190,7 +190,7 @@ void setfullscreen(bool enable)
     }
 }
 
-VARF(fullscreen, 0, 1, 1, setfullscreen(fullscreen != 0));
+VARF(fullscreen, 0, 0, 1, setfullscreen(fullscreen != 0));
 
 void resetfullscreen()
 {

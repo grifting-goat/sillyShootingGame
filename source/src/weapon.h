@@ -17,7 +17,7 @@ struct weapon
     int &ammo, &mag, &gunwait, shots;
     virtual int dynspread();
     virtual float dynrecoil();
-    int reloading, lastaction;
+    int reloading, lastaction, mag_before_reload;
 
     virtual bool attack(vec &targ) = 0;
     virtual void attackfx(const vec &from, const vec &to, int millis) = 0;
@@ -149,6 +149,12 @@ struct pistol : gun
     bool selectable();
 };
 
+struct flintlock : gun
+{
+    flintlock(playerent *owner);
+    bool selectable();
+};
+
 
 struct akimbo : gun
 {
@@ -183,3 +189,15 @@ struct knife : weapon
     int flashtime() const;
 };
 
+struct hands : weapon
+{
+    hands(playerent *owner);
+
+    bool attack(vec &targ);
+    int modelanim();
+    void attackfx(const vec &from, const vec &to, int millis);
+    void renderstats();
+    int flashtime() const;
+    bool selectable() { return false; } // hands can't be selected manually
+    bool deselectable() { return true; } // hands can always be deselected
+};

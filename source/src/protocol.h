@@ -36,7 +36,7 @@ enum
     SV_PING, SV_PONG, SV_CLIENTPING,
     SV_EDITMODE, SV_EDITXY, SV_EDITARCH, SV_EDITBLOCK, SV_EDITD, SV_EDITE, SV_NEWMAP,
     SV_SENDMAP, SV_RECVMAP, SV_REMOVEMAP,
-    SV_SERVMSG, SV_SERVMSGVERB, SV_ITEMLIST, SV_WEAPCHANGE, SV_PRIMARYWEAP,
+    SV_SERVMSG, SV_SERVMSGVERB, SV_ITEMLIST, SV_WEAPCHANGE, SV_PRIMARYWEAP, SV_SECONDARYWEAP,
     SV_FLAGACTION, SV_FLAGINFO, SV_FLAGMSG, SV_FLAGCNT,
     SV_ARENAWIN,
     SV_SETADMIN, SV_SERVOPINFO,
@@ -127,6 +127,7 @@ enum
     GMODE_BOTLSS,
     GMODE_BOTTEAMSURVIVOR,              // 20
     GMODE_BOTTEAMONESHOTONKILL,
+    GMODE_BOTSLOWTDM,                   // 22
     GMODE_NUM
 };
 
@@ -154,6 +155,7 @@ enum
     GMMASK_BOTLSS               = 1 << GMODE_BOTLSS,
     GMMASK_BOTTEAMSURVIVOR      = 1 << GMODE_BOTTEAMSURVIVOR,              // 20
     GMMASK_BOTTEAMONESHOTONKILL = 1 << GMODE_BOTTEAMONESHOTONKILL,
+    GMMASK_BOTSLOWTDM           = 1 << GMODE_BOTSLOWTDM,                   // 22
     GMMASK__ALL       = (1 << GMODE_NUM) - 1,
     GMMASK__FLAGS     = GMMASK_CTF | GMMASK_HUNTTHEFLAG | GMMASK_KEEPTHEFLAG | GMMASK_TEAMKEEPTHEFLAG,
     GMMASK__FLAGENTS  = GMMASK_CTF | GMMASK_KEEPTHEFLAG | GMMASK_TEAMKEEPTHEFLAG,
@@ -178,6 +180,7 @@ enum
 #define m_osok        ((gamemode>=10 && gamemode<=12) || gamemode==21)
 #define m_htf         (gamemode==13)
 #define m_ktf         (gamemode==14 || gamemode==15)
+#define m_botslowtdm  (gamemode==22)
 
 #define m_noitems     (m_lms || m_osok)
 #define m_noitemsnade (m_lss)
@@ -185,12 +188,12 @@ enum
 #define m_noprimary   (m_pistol || m_lss)
 #define m_noguns      (m_nopistol && m_noprimary)
 #define m_arena       (m_lms || m_lss || m_osok)
-#define m_autospawn   (gamemode == 0 || gamemode == 2 || gamemode == 6 || gamemode == 13 || gamemode == 16)
-#define m_teammode    (gamemode==0 || gamemode==4 || gamemode==5 || gamemode==7 || gamemode==11 || gamemode==13 || gamemode==14 || gamemode==16 || gamemode==17 || gamemode==20 || gamemode==21)
+#define m_autospawn   (gamemode == 0 || gamemode == 2 || gamemode == 6 || gamemode == 13 || gamemode == 16 || gamemode == 22)
+#define m_teammode    (gamemode==0 || gamemode==4 || gamemode==5 || gamemode==7 || gamemode==11 || gamemode==13 || gamemode==14 || gamemode==16 || gamemode==17 || gamemode==20 || gamemode==21 || gamemode==22)
 #define m_tarena      (m_arena && m_teammode)
-#define m_botmode     (gamemode==7 || gamemode == 8 || gamemode==12 || (gamemode>=18 && gamemode<=21))
+#define m_botmode     (gamemode==7 || gamemode == 8 || gamemode==12 || (gamemode>=18 && gamemode<=21) || gamemode==22)
 #define m_valid(mode) (((mode)>=0 && (mode)<GMODE_NUM) || (mode) == -1)
-#define m_mp(mode)    (m_valid(mode) && (mode)>=0 && (mode)!=7 && (mode)!=8 && (mode)!=12 && ((mode)<18 || (mode)>21))
+#define m_mp(mode)    (m_valid(mode) && (mode)>=0 && (mode)!=7 && (mode)!=8 && (mode)!=12 && (mode)!=22 && ((mode)<18 || (mode)>21))
 #define m_demo        (gamemode==-1)
 #define m_coop        (gamemode==1)
 #define m_flags_      (m_ctf || m_htf || m_ktf) // trailing underscore is required to prevent name clash on FreeBSD systems

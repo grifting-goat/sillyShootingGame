@@ -221,7 +221,7 @@ bool collide(physent *d, bool spawn, float drop, float rise)
     const int y1 = int(fy1);
     const int x2 = int(fx2);
     const int y2 = int(fy2);
-    float hi = 127, lo = -128;
+    float hi = 512, lo = -128;  // Increased height barrier from 127 to 512
     const float eyeheight = d->eyeheight;
     const float playerheight = eyeheight + d->aboveeye;
     float z1 = d->o.z-eyeheight, z2 = z1 + playerheight;
@@ -395,6 +395,15 @@ void resizephysent(physent *pl, int moveres, int curtime, float min, float max)
 
 FVARP(flyspeed, 1.0, 2.0, 5.0);
 
+// Enhanced physics parameters
+FVARP(momentum_retention, 0.0f, 0.75f, 1.0f);      // How much speed to keep when sliding
+FVARP(bounce_threshold, 0.0f, 0.6f, 1.0f);         // When to bounce vs slide (based on velocity)
+FVARP(bounce_damping, 0.1f, 0.7f, 1.0f);           // Energy loss on bounce
+FVARP(slide_damping, 0.7f, 0.85f, 1.0f);           // Energy loss on slide
+FVARP(wall_friction, 0.1f, 0.3f, 1.0f);            // Additional friction when sliding along walls
+FVARP(player_bounce_threshold, 0.0f, 1.2f, 3.0f);  // Speed threshold for player wall bounces
+FVARP(player_bounce_force, 0.1f, 0.4f, 1.0f);      // Percentage of force returned in bounce
+
 void moveplayer(physent *pl, int moveres, bool local, int curtime)
 {
     bool water = false;
@@ -424,7 +433,7 @@ void moveplayer(physent *pl, int moveres, bool local, int curtime)
         {
             const float CUBES_PER_METER = 4; // assumes 4 cubes make up 1 meter
             const float BOUNCE_MASS = 0.5f; // sane default mass of 0.5 kg
-            const float GRAVITY = BOUNCE_MASS*9.81f/CUBES_PER_METER/1000.0f;
+            const float GRAVITY = BOUNCE_MASS*6.81f/CUBES_PER_METER/1000.0f;
             bounce->vel.z -= GRAVITY*curtime;
         }
 
@@ -446,7 +455,8 @@ void moveplayer(physent *pl, int moveres, bool local, int curtime)
         float chspeed = (pl->onfloor || pl->onladder || !pl->crouchedinair) ? 0.4f : 1.0f;
 
         const bool crouching = pl->crouching || (pl->eyeheight < pl->maxeyeheight && pl->eyeheight > 1.1f);
-        const float speed = curtime/(water ? 2000.0f : 1000.0f)*pl->maxspeed*(crouching && pl->state != CS_EDITING ? chspeed : 1.0f)*(pl==player1 && isfly ? flyspeed : 1.0f);
+        const float sprintspeed = pl->sprinting ? 1.6f : 0.9f; // 1.6x speed when sprinting
+        const float speed = curtime/(water ? 2000.0f : 1000.0f)*pl->maxspeed*(crouching && pl->state != CS_EDITING ? chspeed : 1.0f)*(pl==player1 && isfly ? flyspeed : 1.0f)*sprintspeed;
         const float friction = water ? 20.0f : (pl->onfloor || isfly ? 6.0f : (pl->onladder ? 1.5f : 30.0f));
         const float fpsfric = max(friction/curtime*20.0f, 1.0f);
 
@@ -519,7 +529,7 @@ void moveplayer(physent *pl, int moveres, bool local, int curtime)
                             pl->jumpnext = false;
                             bool doublejump = pl->lastjump && lastmillis - pl->lastjump < 250 && pl->strafe != 0 && pl->o.z - pl->eyeheight - pl->lastjumpheight > 0.2f;
                             pl->lastjumpheight = pl->o.z - pl->eyeheight;
-                            pl->vel.z = 2.0f; // physics impulse upwards
+                            pl->vel.z = pl->sprinting ? 1.3f : 2.1f; // physics impulse upwards (reduced when sprinting)
                             if(doublejump && curfullspeed > 0.1f) // more velocity on double jump
                             {
                                 pl->vel.mul(1.25f / max(pl->vel.magnitudexy() / curfullspeed, 1.0f));
@@ -555,7 +565,7 @@ void moveplayer(physent *pl, int moveres, bool local, int curtime)
                 }
             }
 
-            const float gravity = 20.0f;
+            const float gravity = 30.0f;
             float dropf = (gravity-1)+pl->timeinair/15.0f;         // incorrect, but works fine
             if(water) { dropf = 5; pl->timeinair = 0; }            // float slowly down in water
             if(pl->onladder) { dropf = 0; pl->timeinair = 0; }
@@ -615,7 +625,7 @@ void moveplayer(physent *pl, int moveres, bool local, int curtime)
         }
         collided = true;
         if(pl->type==ENT_BOUNCE && cornersurface1)
-        { // try corner bounce
+        { // Enhanced corner bounce
             float ct2f = cornersurface1 & 2 ? -1.0 : 1.0;
             vec xd = d;
             xd.x = d.y * ct2f;
@@ -628,7 +638,11 @@ void moveplayer(physent *pl, int moveres, bool local, int curtime)
                 float sw = pl->vel.x * ct2f;
                 pl->vel.x = pl->vel.y * ct2f;
                 pl->vel.y = sw;
-                pl->vel.mul(0.7f);
+                
+                // Apply velocity-dependent damping for more realistic bounces
+                float vel_magnitude = pl->vel.magnitudexy();
+                float damping = vel_magnitude > bounce_threshold ? bounce_damping : slide_damping;
+                pl->vel.mul(damping);
                 continue;
             }
             pl->o = o_trying;
@@ -641,15 +655,31 @@ void moveplayer(physent *pl, int moveres, bool local, int curtime)
         if(pl->type!=ENT_BOUNCE && hitplayer)
         {
             vec dr(hitplayer->o.x-pl->o.x,hitplayer->o.y-pl->o.y,0);
-            float invdist = 1.0f / dr.magnitudexy(),
-                  push = (invdist < 10.0f ? dr.dotxy(d)*1.1f*invdist : dr.dotxy(d) * 11.0f);
+            float dist = dr.magnitudexy();
+            
+            if(dist > 0.01f) // Avoid division by zero
+            {
+                float invdist = 1.0f / dist;
+                float push = (invdist < 10.0f ? dr.dotxy(d)*1.2f*invdist : dr.dotxy(d) * 12.0f);
+                
+                // Enhanced player collision - add slight bounce effect
+                float vel_magnitude = pl->vel.magnitudexy();
+                if(vel_magnitude > bounce_threshold * 0.5f)
+                {
+                    // Apply small bounce for fast player collisions
+                    vec bounce_dir = dr;
+                    bounce_dir.normalize();
+                    bounce_dir.mul(-vel_magnitude * 0.3f * bounce_damping);
+                    pl->vel.add(bounce_dir);
+                }
 
-            pl->o.x -= f*d.x*push;
-            pl->o.y -= f*d.y*push;
-            if(i==0 && pl->type==ENT_BOT) pl->yaw += (dr.cxy(d)>0 ? 2:-2); // force the bots to change direction
-            if( !collide(pl, false, drop, rise) ) continue;
-            pl->o.x += f*d.x*push;
-            pl->o.y += f*d.y*push;
+                pl->o.x -= f*d.x*push;
+                pl->o.y -= f*d.y*push;
+                if(i==0 && pl->type==ENT_BOT) pl->yaw += (dr.cxy(d)>0 ? 2:-2); // force the bots to change direction
+                if( !collide(pl, false, drop, rise) ) continue;
+                pl->o.x += f*d.x*push;
+                pl->o.y += f*d.y*push;
+            }
         }
 
         // the desired direction didn't work
@@ -674,12 +704,64 @@ void moveplayer(physent *pl, int moveres, bool local, int curtime)
             }
             pl->o = o_nullxy;
         }
+        
+        // Enhanced sliding system - try velocity-based sliding first
+        vec slide_vel = d;
+        float vel_magnitude = slide_vel.magnitudexy();
+        
+        // Apply momentum retention and sliding
+        if(vel_magnitude > 0.01f && pl->type != ENT_BOUNCE)
+        {
+            // Try sliding with reduced velocity but maintaining direction
+            slide_vel.mul(momentum_retention);
+            
+            // Apply additional wall friction
+            slide_vel.mul(1.0f - wall_friction);
+            
+            pl->o.x += f * slide_vel.x;
+            pl->o.y += f * slide_vel.y;
+            
+            if(!collide(pl, false, drop, rise))
+            {
+                // Update velocity to maintain smooth sliding
+                d.x = slide_vel.x;
+                d.y = slide_vel.y;
+                pl->vel.x *= slide_damping;
+                pl->vel.y *= slide_damping;
+                continue;
+            }
+            pl->o = o_nullxy;
+        }
+        
+        // Fallback to original axis-based sliding for complex collisions
         // try slide along y axis
         pl->o.y = o_trying.y;
         if(!collide(pl, false, drop, rise))
         {
             d.x = 0;
-            if(pl->type==ENT_BOUNCE) { pl->vel.x = -pl->vel.x; pl->vel.mul(0.7f); }
+            if(pl->type==ENT_BOUNCE) { 
+                pl->vel.x = -pl->vel.x; 
+                pl->vel.mul(bounce_damping); 
+            }
+            else { 
+                // Player wall bounce system
+                float impact_speed = fabs(d.x);
+                if(impact_speed > player_bounce_threshold && pl->type == ENT_PLAYER)
+                {
+                    // High-speed wall impact - bounce back
+                    pl->vel.x = -pl->vel.x * player_bounce_force;
+                    // Add small camera shake effect on hard impacts
+                    if(pl == player1 && impact_speed > player_bounce_threshold * 1.5f)
+                    {
+                        // Simulate impact effect with pitch adjustment
+                        pl->pitchvel += (rnd(21) - 10) * 0.02f * impact_speed;
+                    }
+                }
+                else
+                {
+                    pl->vel.x *= slide_damping; // Apply slide damping for normal collisions
+                }
+            }
             continue;
         }
         pl->o = o_nullxy;
@@ -688,7 +770,29 @@ void moveplayer(physent *pl, int moveres, bool local, int curtime)
         if(!collide(pl, false, drop, rise))
         {
             d.y = 0;
-            if(pl->type==ENT_BOUNCE) { pl->vel.y = -pl->vel.y; pl->vel.mul(0.7f); }
+            if(pl->type==ENT_BOUNCE) { 
+                pl->vel.y = -pl->vel.y; 
+                pl->vel.mul(bounce_damping); 
+            }
+            else { 
+                // Player wall bounce system
+                float impact_speed = fabs(d.y);
+                if(impact_speed > player_bounce_threshold && pl->type == ENT_PLAYER)
+                {
+                    // High-speed wall impact - bounce back
+                    pl->vel.y = -pl->vel.y * player_bounce_force;
+                    // Add small camera shake effect on hard impacts
+                    if(pl == player1 && impact_speed > player_bounce_threshold * 1.5f)
+                    {
+                        // Simulate impact effect with pitch adjustment
+                        pl->pitchvel += (rnd(21) - 10) * 0.02f * impact_speed;
+                    }
+                }
+                else
+                {
+                    pl->vel.y *= slide_damping; // Apply slide damping for normal collisions
+                }
+            }
             continue;
         }
         pl->o = o_nullxy;
@@ -699,7 +803,49 @@ void moveplayer(physent *pl, int moveres, bool local, int curtime)
             continue;
         }
         pl->o = o_null;
-        if(pl->type==ENT_BOUNCE) { pl->vel.z = -pl->vel.z; pl->vel.mul(0.5f); }
+        
+        // Enhanced bounce logic for all entity types
+        if(vel_magnitude > bounce_threshold)
+        {
+            if(pl->type == ENT_PLAYER && vel_magnitude > player_bounce_threshold)
+            {
+                // Player high-speed collision bounce
+                vec bounce_dir = d;
+                bounce_dir.normalize();
+                
+                // Calculate bounce velocity based on impact speed and surface normal
+                float bounce_magnitude = vel_magnitude * player_bounce_force;
+                
+                // Reverse direction and apply bounce force
+                pl->vel.x = -bounce_dir.x * bounce_magnitude;
+                pl->vel.y = -bounce_dir.y * bounce_magnitude;
+                
+                // Add impact effects for the local player
+                if(pl == player1)
+                {
+                    // Camera shake effect proportional to impact
+                    float shake_intensity = min(vel_magnitude / player_bounce_threshold, 3.0f);
+                    pl->pitchvel += (rnd(21) - 10) * 0.03f * shake_intensity;
+                    
+                    // Temporary movement speed reduction from impact
+                    pl->vel.mul(0.8f + 0.2f * (1.0f / shake_intensity));
+                }
+                
+                // Sound effect for hard impacts (if this were a real game)
+                // audiomgr.playsoundc(S_WALLIMPACT, pl);
+            }
+            else if(pl->type == ENT_BOUNCE)
+            {
+                // Apply bounce effect for bounce entities
+                pl->vel.mul(-bounce_damping);
+            }
+        }
+        
+        if(pl->type==ENT_BOUNCE) { 
+            // Gentler ceiling bounce - only reverse 0.1% of Z velocity
+            pl->vel.z = -pl->vel.z * 0.001f; 
+            //pl->vel.mul(0.5f); 
+        }
         break;
     }
 
@@ -733,7 +879,8 @@ void moveplayer(physent *pl, int moveres, bool local, int curtime)
         pl->pitch += pl->pitchvel*(curtime/1000.0f)*pl->maxspeed*(pl->crouching ? 0.75f : 1.0f);
         pl->pitchvel *= fric-3;
         pl->pitchvel /= fric;
-        if(pl->pitchvel < 0.05f && pl->pitchvel > 0.001f) pl->pitchvel -= ((playerent *)pl)->weaponsel->info.recoilbackfade/100.0f; // slide back
+        if(pl->pitchvel < 0.05f && pl->pitchvel > 0.001f && ((playerent *)pl)->weaponsel) 
+            pl->pitchvel -= ((playerent *)pl)->weaponsel->info.recoilbackfade/100.0f; // slide back
         if(pl->pitchvel) fixcamerarange(pl); // fix pitch if necessary
     }
 
@@ -766,7 +913,11 @@ void moveplayer(physent *pl, int moveres, bool local, int curtime)
     // apply volume-resize when crouching
     if(pl->type==ENT_PLAYER || pl->type==ENT_BOT)
     {
-        if(!intermission && !ispaused && (pl == player1 || pl->type == ENT_BOT)) updatecrouch((playerent *)pl, pl->trycrouch);
+        if(!intermission && !ispaused && (pl == player1 || pl->type == ENT_BOT)) 
+        {
+            updatecrouch((playerent *)pl, pl->trycrouch);
+            updatesprint((playerent *)pl, pl->trysprinting);
+        }
         const float croucheyeheight = pl->maxeyeheight*3.0f/4.0f;
         resizephysent(pl, moveres, curtime, croucheyeheight, pl->maxeyeheight);
     }
@@ -876,10 +1027,63 @@ void updatecrouch(playerent *p, bool on)
     if(p==player1) audiomgr.playsoundc(on ? S_CROUCH : S_UNCROUCH);
 }
 
+void updatesprint(playerent *p, bool on)
+{
+    if(p->sprinting == on) return;
+    if(p->state == CS_EDITING || p->crouching) return; // don't sprint when editing or crouching
+    p->sprinting = on;
+    
+    if(on)
+    {
+        // Store current weapon and set to hands when sprint starts
+        p->weapon_before_sprint = p->weaponsel;
+        
+        // Cancel any active reload when starting sprint
+        if(p->weaponsel && p->weaponsel->reloading)
+        {
+            p->weaponsel->reloading = 0;
+            // Restore original mag count if reload was in progress
+            if(p->weaponsel->mag_before_reload >= 0)
+            {
+                int bullets_to_restore = p->weaponsel->mag - p->weaponsel->mag_before_reload;
+                p->weaponsel->mag = p->weaponsel->mag_before_reload;
+                p->weaponsel->ammo += bullets_to_restore;
+                p->weaponsel->mag_before_reload = -1;
+            }
+        }
+        
+        // Set to hands state (safe null object)
+        p->weaponsel = p->weapons[GUN_HANDS];
+    }
+    else
+    {
+        // Check if there's a pending weapon switch first
+        if(p->pending_weapon_switch)
+        {
+            // Apply the pending weapon switch instead of restoring the old weapon
+            p->weaponsel = p->pending_weapon_switch;
+            p->pending_weapon_switch = NULL;
+        }
+        else if(p->weapon_before_sprint)
+        {
+            // Re-equip stored weapon when sprint ends (only if no pending switch)
+            p->weaponsel = p->weapon_before_sprint;
+        }
+        p->weapon_before_sprint = NULL;
+    }
+}
+
 void crouch(bool on)
 {
     if(player1->isspectating() && on) return;
     player1->trycrouch = on;
+}
+
+void sprint(bool on)
+{
+    if(player1->isspectating() && on) return;
+    if(player1->crouching && on) return; // can't sprint while crouching
+    player1->trysprinting = on;
 }
 
 COMMAND(backward, "d");
@@ -889,6 +1093,7 @@ COMMAND(right, "d");
 COMMANDN(jump, jumpn, "d");
 COMMAND(attack, "d");
 COMMAND(crouch, "d");
+COMMAND(sprint, "d");
 
 void fixcamerarange(physent *cam)
 {
@@ -913,7 +1118,7 @@ FVARP(mfilter, 0.0f, 0.0f, 6.0f);               // simple lowpass filtering (zer
 void mousemove(int idx, int idy)
 {
     if(intermission || ispaused || (player1->isspectating() && (player1->spectatemode==SM_FOLLOW1ST||player1->spectatemode==SM_OVERVIEW))) return;
-    bool zooming = player1->weaponsel->type == GUN_SNIPER && ((sniperrifle *)player1->weaponsel)->scoped;               // check if player uses scope
+    bool zooming = player1->weaponsel && player1->weaponsel->type == GUN_SNIPER && ((sniperrifle *)player1->weaponsel)->scoped;               // check if player uses scope
     float dx = idx, dy = idy;
     if(mfilter > 0.0001f)
     { // simple IIR-like filter (1st order lowpass)

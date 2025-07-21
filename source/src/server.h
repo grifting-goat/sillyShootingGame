@@ -429,7 +429,7 @@ const char *messagenames[SV_NUM] =
     "SV_PING", "SV_PONG", "SV_CLIENTPING",
     "SV_EDITMODE", "SV_EDITXY", "SV_EDITARCH", "SV_EDITBLOCK", "SV_EDITD", "SV_EDITE", "SV_NEWMAP",
     "SV_SENDMAP", "SV_RECVMAP", "SV_REMOVEMAP",
-    "SV_SERVMSG", "SV_SERVMSGVERB", "SV_ITEMLIST", "SV_WEAPCHANGE", "SV_PRIMARYWEAP",
+    "SV_SERVMSG", "SV_SERVMSGVERB", "SV_ITEMLIST", "SV_WEAPCHANGE", "SV_PRIMARYWEAP", "SV_SECONDARYWEAP",
     "SV_FLAGACTION", "SV_FLAGINFO", "SV_FLAGMSG", "SV_FLAGCNT",
     "SV_ARENAWIN",
     "SV_SETADMIN", "SV_SERVOPINFO",
@@ -503,21 +503,22 @@ uchar entscale[MAXENTTYPES][7] =
 itemstat ammostats[NUMGUNS] =
 {
     {  1,  1,   1,  S_ITEMAMMO  },   // knife dummy
-    { 20, 60, 100,  S_ITEMAMMO  },   // pistol
-    { 15, 30,  30,  S_ITEMAMMO  },   // carbine
-    { 14, 28,  21,  S_ITEMAMMO  },   // shotgun
-    { 60, 90,  90,  S_ITEMAMMO  },   // subgun
-    { 10, 20,  15,  S_ITEMAMMO  },   // sniper
-    { 40, 60,  60,  S_ITEMAMMO  },   // assault
-    {  1,  0,   3,  S_ITEMAMMO  },   // grenade
-    {100,  0, 100,  S_ITEMAKIMBO}    // akimbo
+    { 20, 260, 100,  S_ITEMAMMO  },   // pistol
+    { 15, 230,  30,  S_ITEMAMMO  },   // carbine
+    { 14, 228,  21,  S_ITEMAMMO  },   // shotgun
+    { 60, 590,  90,  S_ITEMAMMO  },   // subgun
+    { 10, 220,  15,  S_ITEMAMMO  },   // sniper
+    { 40, 560,  60,  S_ITEMAMMO  },   // assault
+    {  1,  5,   5,  S_ITEMAMMO  },   // grenade
+    {140,  0, 140,  S_ITEMAKIMBO},   // akimbo
+    { 20, 260, 100,  S_ITEMAMMO  }    // flintlock
 };
 
 itemstat powerupstats[I_ARMOUR-I_HEALTH+1] =
 {
-    {33, 0, 100, S_ITEMHEALTH}, // 0 health
-    {25, 0, 100, S_ITEMHELMET}, // 1 helmet
-    {50, 0, 100, S_ITEMARMOUR}, // 2 armour
+    {100, 0, 100, S_ITEMHEALTH}, // 0 health - max health set to 1000
+    {50, 0, 100, S_ITEMHELMET}, // 1 helmet
+    {100, 0, 100, S_ITEMARMOUR}, // 2 armour
 };
 
 guninfo guns[NUMGUNS] =
@@ -528,18 +529,20 @@ guninfo guns[NUMGUNS] =
     //pFX: pushfactor
     //modelname                 sound                reloadtime        damage    projspeed  spread     magsize    mKB      reB          reF        isauto
     //             title                      reload       attackdelay      piercing     part     recoil       mKR     reI        reM        pFX
-    { "knife",   "Knife",        S_KNIFE,   S_NULL,     0,      500,    50, 100,     0,   0,  1,    1,   1,    0,  0,   0,   0,    0,    0,   1,   false },
-    { "pistol",  "Pistol",       S_PISTOL,  S_RPISTOL,  1400,   160,    18,   0,     0,   0, 53,   10,   10,   6,  5,   6,  35,   58,   125,  1,   false },
-    { "carbine", "TMP-M&A CB",   S_CARBINE, S_RCARBINE, 1800,   720,    60,  40,     0,   0, 10,   60,   10,   4,  4,  10,  60,   60,   150,  1,   false },
-    { "shotgun", "V-19 CS",      S_SHOTGUN, S_RSHOTGUN, 2400,   880,    1,    0,     0,   0,  1,   35,    7,   9,  9,  10, 140,  140,   125,  1,   false },   // CAUTION dmg only sane for server!
-    { "subgun",  "A-ARD/10 SMG", S_SUBGUN,  S_RSUBGUN,  1650,   80,     16,   0,     0,   0, 45,   15,   30,   1,  2,   5,  25,   50,   188,  1,   true  },
-    { "sniper",  "AD-81 SR",     S_SNIPER,  S_RSNIPER,  1950,   1500,   82,  25,     0,   0, 50,   50,    5,   4,  4,  10,  85,   85,   100,  1,   false },
-    { "assault", "MTP-57 AR",    S_ASSAULT, S_RASSAULT, 2000,   120,    22,   0,     0,   0, 18,   30,   20,   0,  2,   3,  25,   50,   115,  1,   true  },
-    { "grenade", "Grenades",     S_NULL,    S_NULL,     1000,   650,    200,  0,    20,   6,  1,    1,   1,    3,  1,   0,   0,    0,    0,   3,   false },
-    { "pistol",  "Akimbo",       S_PISTOL,  S_RAKIMBO,  1400,   80,     18,   0,     0,   0, 50,   10,   20,   6,  5,   4,  15,   25,   115,  1,   true  },
+    { "knife",   "Knife",        S_KNIFE,   S_NULL,     0,      500,    90, 100,     0,   0,  1,    0,   0,    0,  0,   0,   0,    0,    0,   1,   true },
+    { "pistol",  "Pistol",       S_PISTOL,  S_RPISTOL,  2020,   320,    25,   19,     0,   0,  0,   50,   14,   6,  5,   6,  35,   58,   125,  1,   false },
+    { "carbine", "TMP-M&A CB",   S_CARBINE, S_RCARBINE, 2020,   650,    60,  50,     0,   0,  0,   0,   8,   4,  4,  10,  60,   60,   150,  2,   false },
+    { "shotgun", "V-19 CS",      S_SHOTGUN, S_RSHOTGUN, 2560,  800,    0,    0,     0,   0,  0,   130,   6,   9,  9,  10, 140,  140,   125,  4,   false },   // CAUTION dmg only sane for server!
+    { "subgun",  "A-ARD/10 SMG", S_SUBGUN,  S_RSUBGUN,  3000,   85,     12,   0,     0,   0,  0,   20,   40,   1,  2,   5,  25,   50,   188,  1,   true  },
+    { "sniper",  "AD-81 SR",     S_SNIPER,  S_RSNIPER,  3320,   900,   86,  40,      0,   0,  45,   80,   5,   4,  4,  10,  85,   85,   100,  2,   false },
+    { "assault", "MTP-57 AR",    S_ASSAULT, S_RASSAULT, 2560,   150,    23,   20,     0,   0,  0,   10,   30,   0,  2,   3,  25,   50,   115,  1,   true  },
+    { "grenade", "Grenades",     S_NULL,    S_NULL,     1000,   650,    50,  0,    20,   6,  0,    0,   1,    3,  1,   0,   0,    0,    0,   5,   false },
+    { "pistol",  "Akimbo",       S_PISTOL,  S_RAKIMBO,  1000,   65,     18,   0,     0,   0,  0,   20,   40,   6,  5,   4,  15,   25,   115,  1,   true  },
+    { "flintlock",  "Flintlock",    S_PISTOL,  S_RPISTOL,  2020,   320,    90,   20,     0,   0,  0,   400,   1,    6,  5,   6,  35,   58,   125,  6,   false },
 };
 
 const char *gunnames[NUMGUNS + 1];
+
 
 const char *teamnames[] = {"CLA", "RVSF", "CLA-SPECT", "RVSF-SPECT", "SPECTATOR", "", "void"};
 const char *teamnames_s[] = {"CLA", "RVSF", "CSPC", "RSPC", "SPEC", "", "void"};
@@ -548,8 +551,8 @@ const char *rolenames[CR_NUM + 1] = { "unarmed", "master", "admin", "owner", "" 
 
 const char *killmessages[2][NUMGUNS] =
 {
-    { "",        "busted", "picked off", "peppered",   "sprayed", "punctured", "shredded", "",       "busted" },
-    { "slashed", "",       "",           "splattered", "",        "headshot",  "",         "gibbed", ""       }
+    { "",        "dispatched", "jorked",     "peppered",   "killed",     "penetrated", "shredded",      "", "busted", "disassembled" },
+    { "london'd", "executed",  "ejorkulated","splattered", "anihilated",   "headshot",  "domed","exploded", "busted all over", "jfk'd"}
 };
 
 #define C(x) (1<<(SC_##x))

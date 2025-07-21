@@ -977,7 +977,7 @@ void renderclient(playerent *d, const char *mdlname, const char *vwepname, int t
     else if(d->state==CS_EDITING)                   { anim = ANIM_JUMP|ANIM_END; }
     else if(d->state==CS_LAGGED)                    { anim = ANIM_SALUTE|ANIM_LOOP|ANIM_TRANSLUCENT; }
     else if(lastmillis-d->lastpain<300)             { anim = d->crouching ? ANIM_CROUCH_PAIN : ANIM_PAIN; speed = 300.0f/4; basetime = d->lastpain; }
-    else if(d->weaponsel == d->lastattackweapon && lastmillis-d->lastaction < 300 && d->lastpain < d->lastaction && !d->weaponsel->reloading && !d->weaponchanging
+    else if(d->weaponsel && d->weaponsel == d->lastattackweapon && lastmillis-d->lastaction < 300 && d->lastpain < d->lastaction && !d->weaponsel->reloading && !d->weaponchanging
         && (d->weaponsel->type != GUN_GRENADE || (d == player1 ? ((grenades *)player1->weapons[GUN_GRENADE])->throwmillis : ((grenades *)d->weapons[GUN_GRENADE])->cookingmillis > 0)))
                                                     { anim = d->crouching ? ANIM_CROUCH_ATTACK : ANIM_ATTACK; speed = 300.0f/8; basetime = d->lastaction; }
     else if(!d->onfloor && d->timeinair>50)         { anim = (d->crouching ? ANIM_CROUCH_WALK : ANIM_JUMP)|ANIM_END; }
@@ -995,7 +995,7 @@ void renderclient(playerent *d, const char *mdlname, const char *vwepname, int t
 
     if(!stenciling && !reflecting && !refracting)
     {
-        if(d->weaponsel==d->lastattackweapon && lastmillis-d->lastaction < d->weaponsel->flashtime())
+        if(d->weaponsel && d->weaponsel==d->lastattackweapon && lastmillis-d->lastaction < d->weaponsel->flashtime())
             anim |= ANIM_PARTICLE;
         if(d != player1 && d->state==CS_ALIVE)
         {

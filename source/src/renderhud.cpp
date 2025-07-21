@@ -79,6 +79,10 @@ VARP(crosshairsize, 0, 15, 50);
 VARP(showstats, 0, 1, 2);
 VARP(crosshairfx, 0, 1, 3);
 VARP(crosshairteamsign, 0, 1, 1);
+
+// Headshot crosshair effect tracking
+extern int lastheadshot;
+VARP(headshotcrosshairfx, 0, 1, 1); // Enable/disable headshot crosshair effects
 VARP(hideradar, 0, 0, 1);
 VARP(hidecompass, 0, 0, 1);
 VARP(hideteam, 0, 0, 1);
@@ -209,6 +213,36 @@ void loadcrosshair(const char *type, const char *filename)
 
 COMMAND(loadcrosshair, "ss");
 
+// Function to trigger headshot crosshair effect
+void triggerheadshoteffect()
+{
+    lastheadshot = lastmillis;
+}
+
+// Test command for headshot effect
+void testheadshoteffect()
+{
+    triggerheadshoteffect();
+}
+
+// Test command for non-lethal headshot effect  
+void testnonlethalheadshot()
+{
+    extern int lastheadshotflash;
+    lastheadshotflash = lastmillis;
+}
+
+// Test command for kill effect
+void testkilleffect()
+{
+    extern int lastkillflash;
+    lastkillflash = lastmillis;
+}
+
+COMMAND(testheadshoteffect, "");
+COMMAND(testnonlethalheadshot, "");
+COMMAND(testkilleffect, "");
+
 void drawcrosshair(playerent *p, int n, color *c, float size)
 {
     if (cleanedit && editmode) return;
@@ -223,24 +257,158 @@ void drawcrosshair(playerent *p, int n, color *c, float size)
     else glBlendFunc(GL_ONE, GL_ONE);
     glBindTexture(GL_TEXTURE_2D, crosshair->id);
     glColor3ub(255,255,255);
-    if(c) glColor3f(c->r, c->g, c->b);
-    else if(crosshairfx==1 || crosshairfx==2 || n==CROSSHAIR_TEAMMATE)
+    
+    extern int lastdamageflash;
+    extern int lastdamageamount;
+    extern int lastheadshotflash;
+    extern int lastkillflash;
+    float rotation = 0.0f;
+    float sizeMult = 1.0f;
+    bool isHeadshotEffect = false;
+    bool isNonLethalHeadshotEffect = false;
+    bool isKillEffect = false;
+    
+    // Check for headshot effect first (takes priority)
+    if(headshotcrosshairfx && lastmillis - lastheadshot < 800)
     {
-        if(n==CROSSHAIR_TEAMMATE) glColor3ub(255, 0, 0);
-        else if(!m_osok)
+        float progress = (lastmillis - lastheadshot) / 800.0f; // 0.0 to 1.0 over 800ms
+        float easedProgress = 1.0f - (progress * progress); // Ease-out effect
+        bool isFullAuto = p && p->weaponsel && guns[p->weaponsel->type].isauto;
+        
+        isHeadshotEffect = true;
+        
+        if(isFullAuto)
         {
-            if(p->health<=25) glColor3ub(255,0,0);
-            else if(p->health<=50) glColor3ub(255,128,0);
+            // Full-auto weapons get enhanced spinning effect
+            rotation = easedProgress * 1080.0f; // Three full rotations for full-auto
+            
+            // More dramatic pulsing for full-auto
+            float pulsePhase = sin(progress * 12.0f * PI) * easedProgress; // More pulses
+            sizeMult = 1.0f + (1.2f * easedProgress) + (0.5f * pulsePhase); // Bigger effect
+        }
+        else
+        {
+            // Standard effect for semi-auto weapons
+            rotation = easedProgress * 720.0f; // Two full rotations that slow down
+            
+            // Standard pulsing size effect - starts big, shrinks to normal
+            float pulsePhase = sin(progress * 8.0f * PI) * easedProgress; // Multiple pulses
+            sizeMult = 1.0f + (0.8f * easedProgress) + (0.3f * pulsePhase);
+        }
+        
+        // Color will be set below to gold/red
+    }
+    // Check for non-lethal headshot effect (takes priority over regular damage flash)
+    else if(headshotcrosshairfx && lastmillis - lastheadshotflash < 300)
+    {
+        float progress = (lastmillis - lastheadshotflash) / 300.0f; // 0.0 to 1.0 over 300ms
+        float easedProgress = 1.0f - (progress * progress); // Ease-out effect
+        
+        isNonLethalHeadshotEffect = true;
+        
+        // Moderate spinning effect for non-lethal headshots
+        rotation = easedProgress * 180.0f; // Half rotation
+        
+        // Subtle pulsing effect
+        float pulsePhase = sin(progress * 4.0f * PI) * easedProgress;
+        sizeMult = 1.0f + (0.3f * easedProgress) + (0.1f * pulsePhase);
+    }
+    // Check for regular kill effect (red version of headshot kill animation)
+    else if(headshotcrosshairfx && lastmillis - lastkillflash < 800)
+    {
+        float progress = (lastmillis - lastkillflash) / 800.0f; // 0.0 to 1.0 over 800ms
+        float easedProgress = 1.0f - (progress * progress); // Ease-out effect
+        bool isFullAuto = p && p->weaponsel && guns[p->weaponsel->type].isauto;
+        
+        isKillEffect = true;
+        
+        if(isFullAuto)
+        {
+            // Full-auto weapons get enhanced spinning effect (same as headshot kills)
+            rotation = easedProgress * 1080.0f; // Three full rotations for full-auto
+            
+            // More dramatic pulsing for full-auto
+            float pulsePhase = sin(progress * 12.0f * PI) * easedProgress; // More pulses
+            sizeMult = 1.0f + (1.2f * easedProgress) + (0.5f * pulsePhase); // Bigger effect
+        }
+        else
+        {
+            // Standard effect for semi-auto weapons (same as headshot kills)
+            rotation = easedProgress * 720.0f; // Two full rotations that slow down
+            
+            // Standard pulsing size effect - starts big, shrinks to normal
+            float pulsePhase = sin(progress * 8.0f * PI) * easedProgress; // Multiple pulses
+            sizeMult = 1.0f + (0.8f * easedProgress) + (0.3f * pulsePhase);
         }
     }
+    // Check if we should apply damage effects - only for automatic weapons and not during any effect
+    else if(lastmillis - lastdamageflash < 200 && p && p->weaponsel && guns[p->weaponsel->type].isauto && 
+            !isHeadshotEffect && !isNonLethalHeadshotEffect && !isKillEffect)
+    {
+        float progress = (lastmillis - lastdamageflash) / 200.0f; // 0.0 to 1.0
+        rotation = (1.0f - progress) * 360.0f; // Full rotation that slows down
+        
+        // Scale size based on damage: 10 damage = 1.1x, 50 damage = 1.5x, 100+ damage = 2.0x
+        float damageScale = 1.0f + (lastdamageamount / 100.0f); // 1.0 to 2.0 range
+        if(damageScale > 2.0f) damageScale = 2.0f; // Cap at 2x size
+        sizeMult = 1.0f + (1.0f - progress) * (damageScale - 1.0f); // Shrinks back to normal
+    }
+    sizeMult = (isHeadshotEffect || isNonLethalHeadshotEffect || isKillEffect) ? sizeMult : 1.0f; //hardcode back to 1.0f for now except effects
+    
+    // Set colors - SIMPLIFIED VERSION
+    if(isKillEffect)
+    {
+        // Regular kill: simple red color
+        glColor3f(1.0f, 0.0f, 0.0f); // Bright red
+    }
+    else if(isNonLethalHeadshotEffect)
+    {
+        // Non-lethal headshot: simple gold color
+        glColor3f(1.0f, 0.8f, 0.0f); // Gold
+    }
+    else if(isHeadshotEffect)
+    {
+        // Lethal headshot: simple gold color
+        glColor3f(1.0f, 0.8f, 0.0f); // Gold
+    }
+    else if(c) glColor3f(c->r, c->g, c->b);
+    else if(crosshairfx==1 || crosshairfx==2 || n==CROSSHAIR_TEAMMATE)
+    {
+        /*if(n==CROSSHAIR_TEAMMATE) glColor3ub(255, 0, 0);
+        else if(!m_osok)
+        {
+            //if(p->health<=25) glColor3ub(255,0,0);
+            //else if(p->health<=50) glColor3ub(255,128,0);
+        }*/
+    }
+    else
+    {
+        // Default white color when no effects are active
+        glColor3ub(255, 255, 255);
+    }
     float s = size>0 ? size : (float)crosshairsize;
-    float chsize = s * ((p == player1 && p->weaponsel->type==GUN_ASSAULT && p->weaponsel->shots > 3) && (crosshairfx==1 || crosshairfx==3) ? 1.4f : 1.0f) * (n==CROSSHAIR_TEAMMATE ? 2.0f : 1.0f);
+    float chsize = s * sizeMult * ((p == player1 && p->weaponsel && p->weaponsel->type==GUN_ASSAULT && p->weaponsel->shots > 30) && (crosshairfx==1 || crosshairfx==3) ? 1.4f : 1.0f);
+    
+    // Apply rotation if needed
+    if(rotation != 0.0f)
+    {
+        glPushMatrix();
+        glTranslatef(VIRTW/2, VIRTH/2, 0);
+        glRotatef(rotation, 0, 0, 1);
+        glTranslatef(-VIRTW/2, -VIRTH/2, 0);
+    }
+    
     glBegin(GL_TRIANGLE_STRIP);
     glTexCoord2f(0, 0); glVertex2f(VIRTW/2 - chsize, VIRTH/2 - chsize);
     glTexCoord2f(1, 0); glVertex2f(VIRTW/2 + chsize, VIRTH/2 - chsize);
     glTexCoord2f(0, 1); glVertex2f(VIRTW/2 - chsize, VIRTH/2 + chsize);
     glTexCoord2f(1, 1); glVertex2f(VIRTW/2 + chsize, VIRTH/2 + chsize);
     glEnd();
+    
+    if(rotation != 0.0f)
+    {
+        glPopMatrix();
+    }
 }
 
 VARP(hidedamageindicator, 0, 0, 1);

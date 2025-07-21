@@ -521,14 +521,39 @@ SVARFP(nextprimary, guns[GUN_ASSAULT].modelname,
         default:
             conoutf("\"%s\" is not a valid primary weapon", nextprimary);
             n = GUN_ASSAULT;
+        case GUN_PISTOL:
         case GUN_CARBINE:
         case GUN_SHOTGUN:
         case GUN_SUBGUN:
         case GUN_SNIPER:
         case GUN_ASSAULT:
+        case GUN_FLINTLOCK:
             player1->setnextprimary(n);
             addmsg(SV_PRIMARYWEAP, "ri", player1->nextprimweap->type);
             nextprimary = exchangestr(nextprimary, gunnames[player1->nextprimweap->type]);
+            break;
+    }
+});
+
+SVARFP(nextsecondary, guns[GUN_PISTOL].modelname,
+{
+    int n = getlistindex(nextsecondary, gunnames, true, -1);
+    switch(n)
+    {
+        default:
+            conoutf("\"%s\" is not a valid secondary weapon", nextsecondary);
+            n = GUN_PISTOL;
+        case GUN_KNIFE:
+        case GUN_PISTOL:
+        case GUN_CARBINE:
+        case GUN_SHOTGUN:
+        case GUN_SUBGUN:
+        case GUN_SNIPER:
+        case GUN_ASSAULT:
+        case GUN_FLINTLOCK:
+            player1->setnextsecondary(n);
+            addmsg(SV_SECONDARYWEAP, "ri", player1->nextsecweap->type);
+            nextsecondary = exchangestr(nextsecondary, gunnames[player1->nextsecweap->type]);
             break;
     }
 });

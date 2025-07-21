@@ -3,6 +3,8 @@
 #include "cube.h"
 #include "bot/bot.h"
 
+extern int bulletpenetration; // For wall penetration setting
+
 bool hasTE = false, hasMT = false, hasMDA = false, hasDRE = false, hasstencil = false, hasST2 = false, hasSTW = false, hasSTS = false, hasAF;
 
 // GL_ARB_multitexture
@@ -480,7 +482,7 @@ void fovchanged()
 
 float dynfov()
 {
-    bool isscoped = player1->weaponsel->type == GUN_SNIPER && ((sniperrifle *)player1->weaponsel)->scoped;
+    bool isscoped = player1->weaponsel && player1->weaponsel->type == GUN_SNIPER && ((sniperrifle *)player1->weaponsel)->scoped;
     bool useremote = spectfovremote && camera1 != player1 && camera1->type == ENT_PLAYER && ((playerent *)camera1)->ffov && ((playerent *)camera1)->scopefov;
     if(camera1 != player1 && camera1->type < ENT_CAMERA) isscoped = ((playerent *)camera1)->scoping;
     if(isscoped) return (float) (useremote ? ((playerent *)camera1)->scopefov : scopefov);
@@ -1008,7 +1010,18 @@ void readdepth(int w, int h, vec &pos)
     vec4 world;
     invmvpmatrix.transform(screen, world);
     pos = vec(world.x, world.y, world.z).div(world.w);
-    intersectgeometry(camera1->o, pos);
+    
+    // For bullet penetration - extend the ray much further to go through walls
+    if(1) {
+        vec direction = pos;
+        direction.sub(camera1->o);
+        direction.normalize();
+        direction.mul(1000.0f); // Extend ray 1000 units from camera
+        pos = camera1->o;
+        pos.add(direction);
+    }
+    
+    if(0) intersectgeometry(camera1->o, pos);
 }
 
 VARP(ignoreoverride_nowaterreflect, 0, 0, 1);

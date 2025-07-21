@@ -56,31 +56,31 @@ struct entity : persistent_entity
     }
 };
 
-enum { GUN_KNIFE = 0, GUN_PISTOL, GUN_CARBINE, GUN_SHOTGUN, GUN_SUBGUN, GUN_SNIPER, GUN_ASSAULT, GUN_GRENADE, GUN_AKIMBO, NUMGUNS };
+enum { GUN_KNIFE = 0, GUN_PISTOL, GUN_CARBINE, GUN_SHOTGUN, GUN_SUBGUN, GUN_SNIPER, GUN_ASSAULT, GUN_GRENADE, GUN_AKIMBO, GUN_FLINTLOCK, GUN_HANDS, NUMGUNS };
 #define valid_weapon(g) ((g) >= GUN_KNIFE && (g) < NUMGUNS)
-#define reloadable_gun(g) ((g) != GUN_KNIFE && (g) != GUN_GRENADE)
+#define reloadable_gun(g) ((g) != GUN_KNIFE && (g) != GUN_GRENADE && (g) != GUN_HANDS)
 
 #define SGRAYS 21
-#define SGDMGTOTAL 90
+#define SGDMGTOTAL 82
 
-#define SGDMGBONUS 65
+#define SGDMGBONUS 50
 #define SGDMGDISTB 50
 
-#define SGCCdmg 500
+#define SGCCdmg 520
 #define SGCCbase 0
-#define SGCCrange 40
+#define SGCCrange 20
 
-#define SGCMdmg 375
-#define SGCMbase 25
-#define SGCMrange 60
+#define SGCMdmg 365
+#define SGCMbase 15
+#define SGCMrange 35
 
-#define SGCOdmg 125
-#define SGCObase 45
-#define SGCOrange 75
+#define SGCOdmg 115
+#define SGCObase 25
+#define SGCOrange 45
 
-#define SGMAXDMGABS 105
+#define SGMAXDMGABS 95
 #define SGMAXDMGLOC 84
-#define EXPDAMRAD 10
+#define EXPDAMRAD 30
 
 struct itemstat { int add, start, max, sound; };
 extern itemstat ammostats[NUMGUNS];
@@ -130,7 +130,7 @@ public:
     int timeinair;                      // used for fake gravity
     float radius, eyeheight, maxeyeheight, aboveeye;  // bounding box size
     bool inwater;
-    bool onfloor, onladder, jumpnext, jumpd, crouching, crouchedinair, trycrouch, cancollide, stuck, scoping;
+    bool onfloor, onladder, jumpnext, jumpd, crouching, crouchedinair, trycrouch, sprinting, trysprinting, cancollide, stuck, scoping;
     int lastjump;
     float lastjumpheight;
     int lastsplash;
@@ -140,7 +140,7 @@ public:
     int last_pos;
 
     physent() : o(0, 0, 0), deltapos(0, 0, 0), newpos(0, 0, 0), yaw(270), pitch(0), roll(0), pitchvel(0),
-            crouching(false), crouchedinair(false), trycrouch(false), cancollide(true), stuck(false), scoping(false), lastjump(0), lastjumpheight(200), lastsplash(0), state(CS_ALIVE), last_pos(0)
+            crouching(false), crouchedinair(false), trycrouch(false), sprinting(false), trysprinting(false), cancollide(true), stuck(false), scoping(false), lastjump(0), lastjumpheight(200), lastsplash(0), state(CS_ALIVE), last_pos(0)
     {
         reset();
     }
@@ -158,7 +158,7 @@ public:
         vel.x = vel.y = vel.z = eyeheightvel = 0.0f;
         move = strafe = 0;
         timeinair = lastjump = lastsplash = 0;
-        onfloor = onladder = inwater = jumpnext = jumpd = crouching = crouchedinair = trycrouch = stuck = false;
+        onfloor = onladder = inwater = jumpnext = jumpd = crouching = crouchedinair = trycrouch = sprinting = trysprinting = stuck = false;
         last_pos = 0;
     }
 
@@ -253,12 +253,13 @@ class playerstate
 public:
     int health, armour;
     int primary, nextprimary;
+    int secondary, nextsecondary;
     int gunselect;
     bool akimbo;
     int ammo[NUMGUNS], mag[NUMGUNS], gunwait[NUMGUNS];
     int pstatshots[NUMGUNS], pstatdamage[NUMGUNS];
 
-    playerstate() : armour(0), primary(GUN_ASSAULT), nextprimary(GUN_ASSAULT), akimbo(false) {}
+    playerstate() : armour(0), primary(GUN_ASSAULT), nextprimary(GUN_ASSAULT), secondary(GUN_PISTOL), nextsecondary(GUN_PISTOL), akimbo(false) {}
     virtual ~playerstate() {}
 
     void resetstats() { loopi(NUMGUNS) pstatshots[i] = pstatdamage[i] = 0; }
@@ -267,7 +268,7 @@ public:
     {
         switch(type)
         {
-            case I_CLIPS:   return &ammostats[GUN_PISTOL];
+            case I_CLIPS:   return &ammostats[GUN_SNIPER];
             case I_AMMO:    return &ammostats[primary];
             case I_GRENADE: return &ammostats[GUN_GRENADE];
             case I_AKIMBO:  return &ammostats[GUN_AKIMBO];
@@ -284,7 +285,7 @@ public:
     {
         switch(type)
         {
-            case I_CLIPS: return ammo[akimbo && ammo[GUN_AKIMBO]<ammostats[GUN_AKIMBO].max ? GUN_AKIMBO : GUN_PISTOL]<ammostats[akimbo && ammo[GUN_AKIMBO]<ammostats[GUN_AKIMBO].max ? GUN_AKIMBO : GUN_PISTOL].max;
+            case I_CLIPS: return ammo[akimbo && ammo[GUN_AKIMBO]<ammostats[GUN_AKIMBO].max ? GUN_AKIMBO : GUN_SNIPER]<ammostats[akimbo && ammo[GUN_AKIMBO]<ammostats[GUN_AKIMBO].max ? GUN_AKIMBO : GUN_SNIPER].max;
             case I_AMMO: return ammo[primary]<ammostats[primary].max;
             case I_GRENADE: return mag[GUN_GRENADE]<ammostats[GUN_GRENADE].max;
             case I_HEALTH: return health<powerupstats[type-I_HEALTH].max;
@@ -306,7 +307,7 @@ public:
         switch(type)
         {
             case I_CLIPS:
-                additem(ammostats[GUN_PISTOL], ammo[GUN_PISTOL]);
+                additem(ammostats[GUN_SNIPER], ammo[GUN_SNIPER]);
                 additem(ammostats[GUN_AKIMBO], ammo[GUN_AKIMBO]);
                 break;
             case I_AMMO: additem(ammostats[primary], ammo[primary]); break;
@@ -326,8 +327,8 @@ public:
     void respawn()
     {
         health = 100;
-        armour = 0;
-        gunselect = GUN_PISTOL;
+        armour = 25;
+        gunselect = GUN_SNIPER;
         akimbo = false;
         loopi(NUMGUNS) ammo[i] = mag[i] = gunwait[i] = 0;
         ammo[GUN_KNIFE] = mag[GUN_KNIFE] = 1;
@@ -340,9 +341,14 @@ public:
         else if(m_lss) primary = GUN_KNIFE;
         else primary = nextprimary;
 
+        // Set secondary weapon based on game mode
+        if(m_lss) secondary = GUN_KNIFE;
+        else if(m_osok) secondary = GUN_KNIFE; // OSOK only has sniper + knife
+        else secondary = nextsecondary;
+
         if(!m_nopistol)
         {
-            ammo[GUN_PISTOL] = ammostats[GUN_PISTOL].start-magsize(GUN_PISTOL);//ammostats[GUN_PISTOL].max-magsize(GUN_PISTOL);
+            ammo[GUN_PISTOL] = ammostats[GUN_PISTOL].start-magsize(GUN_PISTOL);
             mag[GUN_PISTOL] = magsize(GUN_PISTOL);
         }
 
@@ -352,13 +358,38 @@ public:
             mag[primary] = magsize(primary);
         }
 
+        // Give ammo to secondary weapon (if different from primary)
+        if(secondary != primary && secondary != GUN_KNIFE)
+        {
+            if(secondary == GUN_PISTOL && !m_nopistol)
+            {
+                // Pistol ammo already set above
+            }
+            else if(!m_noprimary)
+            {
+                ammo[secondary] = ammostats[secondary].start-magsize(secondary);
+                mag[secondary] = magsize(secondary);
+            }
+        }
+
         gunselect = primary;
+
+        // Give grenades based on ammostats (like other weapons)
+        //ammo[GUN_GRENADE] = ammostats[GUN_GRENADE].start - magsize(GUN_GRENADE);
+        //mag[GUN_GRENADE] = magsize(GUN_GRENADE);
 
         if(m_osok) health = 1;
         if(m_lms) // Survivor && Team-Survivor : 2010nov19
         {
             health = 100;
             armour = 100;
+            // LMS mode uses same grenade count as other modes
+        }
+        
+        // Bot Slow TDM: limit all magazines to 1 bullet, enable grenades
+        if(m_botslowtdm)
+        {
+            loopi(NUMGUNS) if(mag[i] > 1) mag[i] = 1;
             ammo[GUN_GRENADE] = 2;
         }
     }
@@ -434,7 +465,9 @@ public:
     bool allowmove() { return (state!=CS_DEAD && state!=CS_SPECTATE) || spectatemode==SM_FLY; }
 
     weapon *weapons[NUMGUNS];
-    weapon *prevweaponsel, *weaponsel, *nextweaponsel, *primweap, *nextprimweap, *lastattackweapon;
+    weapon *prevweaponsel, *weaponsel, *nextweaponsel, *primweap, *nextprimweap, *secweap, *nextsecweap, *lastattackweapon;
+    weapon *weapon_before_sprint; // weapon to re-equip after sprint ends
+    weapon *pending_weapon_switch; // weapon to switch to after sprint ends
 
     poshist history; // Previous stored locations of this player
 
@@ -450,7 +483,7 @@ public:
 
     playerent() : curskin(0), clientnum(-1), lastupdate(0), plag(0), ping(0), address(0), lifesequence(0), frags(0), flagscore(0), deaths(0), tks(0), lastpain(0), lastvoicecom(0), lastdeath(0), clientrole(CR_DEFAULT),
                   team(TEAM_SPECT), spectatemode(SM_NONE), followplayercn(FPCN_VOID), eardamagemillis(0), maxroll(ROLLMOVDEF), maxrolleffect(ROLLEFFDEF), movroll(0), effroll(0), ffov(0), scopefov(0),
-                  prevweaponsel(NULL), weaponsel(NULL), nextweaponsel(NULL), primweap(NULL), nextprimweap(NULL), lastattackweapon(NULL),
+                  prevweaponsel(NULL), weaponsel(NULL), nextweaponsel(NULL), primweap(NULL), nextprimweap(NULL), secweap(NULL), nextsecweap(NULL), lastattackweapon(NULL), weapon_before_sprint(NULL), pending_weapon_switch(NULL),
                   smoothmillis(-1),
                   head(-1, -1, -1), ignored(false), muted(false), nocorpse(false)
     {
@@ -491,7 +524,8 @@ public:
     {
         if(!valid_weapon(gun)) return;
         vec push(dir);
-        push.mul(damage/100.0f*guns[gun].pushfactor);
+        push.mul(damage/250.0f*guns[gun].pushfactor + guns[gun].pushfactor/2.1f);
+        push.z += (damage/250.0f*guns[gun].pushfactor + guns[gun].pushfactor/2.9f); // add some vertical push
         vel.add(push);
         extern int lastmillis;
         if(gun==GUN_GRENADE && damage > 50) eardamagemillis = lastmillis+damage*100;
@@ -533,6 +567,8 @@ public:
         prevweaponsel = weaponsel = weapons[gunselect];
         primweap = weapons[primary];
         nextprimweap = weapons[nextprimary];
+        secweap = weapons[secondary];
+        nextsecweap = weapons[nextsecondary];
         curskin = nextskin[team_base(team)];
     }
 
@@ -547,11 +583,26 @@ public:
 
     void setprimary(int w) { if(!valid_weapon(w)) return; primweap = weapons[(primary = w)]; }
     void setnextprimary(int w) { nextprimweap = weapons[(nextprimary = w)]; }
+    void setsecondary(int w) { if(!valid_weapon(w)) return; secweap = weapons[(secondary = w)]; }
+    void setnextsecondary(int w) { nextsecweap = weapons[(nextsecondary = w)]; }
     bool isspectating() { return state==CS_SPECTATE || (state==CS_DEAD && spectatemode > SM_NONE); }
     void weaponswitch(weapon *w, bool sound = true)
     {
         if(!w) return;
         extern int lastmillis;
+        // Cancel reload on current weapon when switching
+        if(weaponsel->reloading) 
+        {
+            weaponsel->reloading = 0;
+            // Restore original mag count if reload was in progress
+            if(weaponsel->mag_before_reload >= 0)
+            {
+                int bullets_to_restore = weaponsel->mag - weaponsel->mag_before_reload;
+                weaponsel->mag = weaponsel->mag_before_reload;
+                weaponsel->ammo += bullets_to_restore;
+                weaponsel->mag_before_reload = -1;
+            }
+        }
         weaponsel->ondeselecting();
         weaponchanging = lastmillis;
         nextweaponsel = w;

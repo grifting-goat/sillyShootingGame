@@ -323,7 +323,7 @@ extern vector<botent *> bots;
 
 class CBotManager
 {
-     char m_szBotNames[150][16]; // Max 150 bot names with a length of 16 characters
+     char m_szBotNames[250][16]; // Max 250 bot names with a length of 16 characters
      short m_sBotNameCount;
      char m_szBotTeams[20][5]; // Max 100 bot teams co a length of 5 characters
      short m_sBotTeamCount;
