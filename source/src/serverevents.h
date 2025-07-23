@@ -79,10 +79,11 @@ void processevent(client *c, shotevent &e)
 
                     if(rays < 1 || tothits_c > SGRAYS || tothits_m > SGRAYS || tothits_o > SGRAYS || bonusdist > SGDMGBONUS) continue;
 
-                    gib = rays == maxrays;
+                    gib = false; // Don't auto-gib based on rays for shotgun
                     float fdamage = (SGDMGTOTAL/(21*100.0f)) * (numhits_o * SGCOdmg/10.0f + numhits_m * SGCMdmg/10.0f + numhits_c * SGCCdmg/10.0f);
                     fdamage += (float)bonusdist;
                     damage = (int)ceil(fdamage);
+                    if(damage > 99) damage = 99;  // Cap shotgun damage at 99
 #ifdef ACAC
                     if (!sg_engine(target, c, numhits_c, numhits_m, numhits_o, bonusdist)) continue;
 #endif
@@ -91,10 +92,41 @@ void processevent(client *c, shotevent &e)
                 {
                     damage = rays*guns[e.gun].damage;
                     gib = e.gun == GUN_KNIFE;
-                    if(e.gun == GUN_SNIPER && h.info != 0)
+                    if(h.info != 0) // headshot
                     {
-                        gib = true;
-                        damage *= 3;
+                        switch(e.gun)
+                        {
+                            case GUN_SNIPER: 
+                                gib = true;
+                                damage *= 3;
+                                break;
+                            case GUN_ASSAULT:
+                                gib = true;
+                                damage *= 2;
+                                break;
+                            case GUN_CARBINE:
+                                gib = true;
+                                damage *= 2;
+                                break;
+                            case GUN_SUBGUN:
+                                gib = false;
+                                damage = (int)(damage * 1.3f);
+                                break;
+                            case GUN_PISTOL:
+                                gib = true;
+                                damage = (int)(damage * 2.25f);
+                                break;
+                            case GUN_AKIMBO:
+                                gib = true;
+                                damage = (int)(damage * 1.5f);
+                                break;
+                            case GUN_FLINTLOCK:
+                                gib = true;
+                                damage *= 3;
+                                break;
+                            default:
+                                break;
+                        }
                     }
                 }
                 totalrays += rays;

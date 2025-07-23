@@ -26,13 +26,13 @@
   physics.cpp
   scoreboard.cpp
   weapon.cpp
-C:\Users\onewi\grifting-goat\AC\source\src\weapon.cpp(900,13): warning C4189: 'originalDamage': local variable is initialized but not referenced
-  (compiling source file '/src/weapon.cpp')
-  
-C:\Users\onewi\grifting-goat\AC\source\src\weapon.cpp(1093,20): warning C4189: 'g': local variable is initialized but not referenced
-  (compiling source file '/src/weapon.cpp')
-  
   command.cpp
+C:\Users\onewi\grifting-goat\sillyShootingGame\source\src\weapon.cpp(900,13): warning C4189: 'originalDamage': local variable is initialized but not referenced
+  (compiling source file '/src/weapon.cpp')
+  
+C:\Users\onewi\grifting-goat\sillyShootingGame\source\src\weapon.cpp(1094,20): warning C4189: 'g': local variable is initialized but not referenced
+  (compiling source file '/src/weapon.cpp')
+  
   autodownload.cpp
   console.cpp
   crypto.cpp
@@ -62,4 +62,4 @@ C:\Users\onewi\grifting-goat\AC\source\src\weapon.cpp(1093,20): warning C4189: '
   Generating code
   Not all modules are compiled with -Gy (function comdat), build without incremental LTCG.
   Finished generating code
-  assaultcube.vcxproj -> C:\Users\onewi\grifting-goat\AC\bin_win32\ac_client.exe
+  assaultcube.vcxproj -> C:\Users\onewi\grifting-goat\sillyShootingGame\bin_win32\ac_client.exe

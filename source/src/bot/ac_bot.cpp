@@ -22,7 +22,8 @@ extern void spawnstate(playerent *d);
 void CACBot::Spawn()
 {
     // Init all bot variabeles
-    m_pMyEnt->nextprimary = 2 + rnd(5); // 2 == GUN_CARBINE, GUN_SHOTGUN, GUN_SUBGUN, GUN_SNIPER, GUN_ASSAULT
+    // 2 == GUN_CARBINE, GUN_SHOTGUN, GUN_SUBGUN, GUN_SNIPER, GUN_ASSAULT
+    m_pMyEnt->nextprimary = rnd(3) ? (2 + rnd(2)) : (rnd(3) ? (4 + rnd(3)) : GUN_FLINTLOCK); 
     m_pMyEnt->nextsecondary = rnd(2) ? GUN_PISTOL : (2 + rnd(5));
     m_pMyEnt->targetyaw = m_pMyEnt->targetpitch = 0.0f;
     m_pMyEnt->pBot = this;

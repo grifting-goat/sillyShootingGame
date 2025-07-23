@@ -902,13 +902,13 @@ void raydamage(vec &from, vec &to, playerent *d)
         switch(d->weaponsel->type)
         {
             case GUN_KNIFE: gib = true; break;
-            case GUN_SNIPER: if(d==player1 && hitzone==2) { dam *= 3.0f; gib = true; }; break;
-            case GUN_ASSAULT: if(d==player1 && hitzone==2) { dam *= 2.0f; gib = true; }; break;
-            case GUN_CARBINE: if(d==player1 && hitzone==2) { dam *= 2.0f; gib = true; }; break;
-            case GUN_SUBGUN: if(d==player1 && hitzone==2) { dam *= 1.3f; gib = false; }; break;
-            case GUN_PISTOL: if(d==player1 && hitzone==2) { dam *= 2.25f; gib = true; }; break;
-            case GUN_AKIMBO: if(d==player1 && hitzone==2) { dam *= 1.5f; gib = true; }; break;
-            case GUN_FLINTLOCK: if(d==player1 && hitzone==2) { dam *= 3.0f; gib = true; }; break;
+            case GUN_SNIPER: if(hitzone==2) { dam *= 3.0f; gib = true; }; break;
+            case GUN_ASSAULT: if(hitzone==2) { dam *= 2.0f; gib = true; }; break;
+            case GUN_CARBINE: if(hitzone==2) { dam *= 2.0f; gib = true; }; break;
+            case GUN_SUBGUN: if(hitzone==2) { dam *= 1.3f; gib = false; }; break;
+            case GUN_PISTOL: if(hitzone==2) { dam *= 2.25f; gib = true; }; break;
+            case GUN_AKIMBO: if(hitzone==2) { dam *= 1.5f; gib = true; }; break;
+            case GUN_FLINTLOCK: if(hitzone==2) { dam *= 3.0f; gib = true; }; break;
             default: break;
         }
         
@@ -1187,6 +1187,9 @@ void weapon::equipplayer(playerent *pl)
     pl->selectweapon(GUN_ASSAULT);
     pl->setprimary(GUN_ASSAULT);
     pl->setnextprimary(GUN_ASSAULT);
+    pl->setsecondary(GUN_PISTOL);
+    pl->setnextsecondary(GUN_PISTOL);
+    pl->setnextsecondary(GUN_PISTOL);
 }
 
 // grenadeent

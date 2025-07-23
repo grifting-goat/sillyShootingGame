@@ -346,7 +346,7 @@ void drawcrosshair(playerent *p, int n, color *c, float size)
             !isHeadshotEffect && !isNonLethalHeadshotEffect && !isKillEffect)
     {
         float progress = (lastmillis - lastdamageflash) / 200.0f; // 0.0 to 1.0
-        rotation = (1.0f - progress) * 360.0f; // Full rotation that slows down
+        rotation = 0; // (1.0f - progress) * 360.0f; // Full rotation that slows down
         
         // Scale size based on damage: 10 damage = 1.1x, 50 damage = 1.5x, 100+ damage = 2.0x
         float damageScale = 1.0f + (lastdamageamount / 100.0f); // 1.0 to 2.0 range
