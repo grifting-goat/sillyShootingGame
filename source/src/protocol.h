@@ -128,6 +128,7 @@ enum
     GMODE_BOTTEAMSURVIVOR,              // 20
     GMODE_BOTTEAMONESHOTONKILL,
     GMODE_BOTSLOWTDM,                   // 22
+    GMODE_SLOWTDM,                      // 23
     GMODE_NUM
 };
 
@@ -156,17 +157,18 @@ enum
     GMMASK_BOTTEAMSURVIVOR      = 1 << GMODE_BOTTEAMSURVIVOR,              // 20
     GMMASK_BOTTEAMONESHOTONKILL = 1 << GMODE_BOTTEAMONESHOTONKILL,
     GMMASK_BOTSLOWTDM           = 1 << GMODE_BOTSLOWTDM,                   // 22
+    GMMASK_SLOWTDM              = 1 << GMODE_SLOWTDM,                      // 23
     GMMASK__ALL       = (1 << GMODE_NUM) - 1,
     GMMASK__FLAGS     = GMMASK_CTF | GMMASK_HUNTTHEFLAG | GMMASK_KEEPTHEFLAG | GMMASK_TEAMKEEPTHEFLAG,
     GMMASK__FLAGENTS  = GMMASK_CTF | GMMASK_KEEPTHEFLAG | GMMASK_TEAMKEEPTHEFLAG,
     GMMASK__BOT       = GMMASK_BOTDEATHMATCH | GMMASK_BOTLSS | GMMASK_BOTONESHOTONEKILL | GMMASK_BOTPISTOLFRENZY | GMMASK_BOTTEAMDEATHMATCH | GMMASK_BOTTEAMONESHOTONKILL | GMMASK_BOTTEAMSURVIVOR,
     GMMASK__MP        = GMMASK_TEAMDEATHMATCH | GMMASK_COOPEDIT | GMMASK_DEATHMATCH | GMMASK_SURVIVOR | GMMASK_TEAMSURVIVOR | GMMASK_CTF | GMMASK_PISTOLFRENZY | GMMASK_LASTSWISSSTANDING
-                      | GMMASK_ONESHOTONEKILL | GMMASK_TEAMONESHOTONEKILL | GMMASK_HUNTTHEFLAG | GMMASK_TEAMKEEPTHEFLAG | GMMASK_KEEPTHEFLAG | GMMASK_TEAMPF | GMMASK_TEAMLSS,
+                      | GMMASK_ONESHOTONEKILL | GMMASK_TEAMONESHOTONEKILL | GMMASK_HUNTTHEFLAG | GMMASK_TEAMKEEPTHEFLAG | GMMASK_KEEPTHEFLAG | GMMASK_TEAMPF | GMMASK_TEAMLSS | GMMASK_SLOWTDM,
     GMMASK__MPNOCOOP  = GMMASK__MP & ~GMMASK_COOPEDIT,
     GMMASK__TEAM      = GMMASK_BOTTEAMDEATHMATCH | GMMASK_BOTTEAMONESHOTONKILL | GMMASK_BOTTEAMSURVIVOR | GMMASK_TEAMDEATHMATCH | GMMASK_TEAMSURVIVOR | GMMASK_CTF
-                      | GMMASK_TEAMONESHOTONEKILL | GMMASK_HUNTTHEFLAG | GMMASK_TEAMKEEPTHEFLAG | GMMASK_TEAMPF | GMMASK_TEAMLSS,
+                      | GMMASK_TEAMONESHOTONEKILL | GMMASK_HUNTTHEFLAG | GMMASK_TEAMKEEPTHEFLAG | GMMASK_TEAMPF | GMMASK_TEAMLSS | GMMASK_SLOWTDM,
     GMMASK__TEAMSPAWN = GMMASK_BOTTEAMDEATHMATCH | GMMASK_BOTTEAMONESHOTONKILL | GMMASK_BOTTEAMSURVIVOR | GMMASK_TEAMDEATHMATCH | GMMASK_TEAMSURVIVOR | GMMASK_CTF
-                      | GMMASK_TEAMONESHOTONEKILL | GMMASK_HUNTTHEFLAG | GMMASK_TEAMPF | GMMASK_TEAMLSS,
+                      | GMMASK_TEAMONESHOTONEKILL | GMMASK_HUNTTHEFLAG | GMMASK_TEAMPF | GMMASK_TEAMLSS | GMMASK_SLOWTDM,
     GMMASK__FFA       = GMMASK_BOTDEATHMATCH | GMMASK_BOTLSS | GMMASK_BOTONESHOTONEKILL | GMMASK_BOTPISTOLFRENZY | GMMASK_COOPEDIT | GMMASK_DEATHMATCH | GMMASK_SURVIVOR
                       | GMMASK_PISTOLFRENZY | GMMASK_LASTSWISSSTANDING | GMMASK_ONESHOTONEKILL | GMMASK_KEEPTHEFLAG,
     GMMASK__FFASPAWN  = GMMASK_BOTDEATHMATCH | GMMASK_BOTLSS | GMMASK_BOTONESHOTONEKILL | GMMASK_BOTPISTOLFRENZY | GMMASK_COOPEDIT | GMMASK_DEATHMATCH | GMMASK_SURVIVOR
@@ -181,6 +183,7 @@ enum
 #define m_htf         (gamemode==13)
 #define m_ktf         (gamemode==14 || gamemode==15)
 #define m_botslowtdm  (gamemode==22)
+#define m_slowtdm     (gamemode==23)
 
 #define m_noitems     (m_lms || m_osok)
 #define m_noitemsnade (m_lss)
@@ -188,8 +191,8 @@ enum
 #define m_noprimary   (m_pistol || m_lss)
 #define m_noguns      (m_nopistol && m_noprimary)
 #define m_arena       (m_lms || m_lss || m_osok)
-#define m_autospawn   (gamemode == 0 || gamemode == 2 || gamemode == 6 || gamemode == 13 || gamemode == 16 || gamemode == 22)
-#define m_teammode    (gamemode==0 || gamemode==4 || gamemode==5 || gamemode==7 || gamemode==11 || gamemode==13 || gamemode==14 || gamemode==16 || gamemode==17 || gamemode==20 || gamemode==21 || gamemode==22)
+#define m_autospawn   (gamemode == 0 || gamemode == 2 || gamemode == 6 || gamemode == 13 || gamemode == 16 || gamemode == 22 || gamemode == 23)
+#define m_teammode    (gamemode==0 || gamemode==4 || gamemode==5 || gamemode==7 || gamemode==11 || gamemode==13 || gamemode==14 || gamemode==16 || gamemode==17 || gamemode==20 || gamemode==21 || gamemode==22 || gamemode==23)
 #define m_tarena      (m_arena && m_teammode)
 #define m_botmode     (gamemode==7 || gamemode == 8 || gamemode==12 || (gamemode>=18 && gamemode<=21) || gamemode==22)
 #define m_valid(mode) (((mode)>=0 && (mode)<GMODE_NUM) || (mode) == -1)

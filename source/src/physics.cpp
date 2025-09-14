@@ -5,6 +5,9 @@
 
 #include "cube.h"
 
+// Forward declaration
+void sprint(bool on);
+
 float raycube(const vec &o, const vec &ray, vec &surface)
 {
     surface = vec(0, 0, 0);
@@ -452,12 +455,13 @@ void moveplayer(physent *pl, int moveres, bool local, int curtime)
         int move = intermission || (pl->onladder && !pl->onfloor && pl->move == -1) ? 0 : pl->move; // movement on ladder
         if(!editfly) water = waterlevel > pl->o.z - 0.5f;
 
-        float chspeed = (pl->onfloor || pl->onladder || !pl->crouchedinair) ? 0.4f : 1.0f;
+        float chspeed = 0.4f; //(pl->onfloor || pl->onladder || !pl->crouchedinair) ? 0.4f : 1.0f;
 
         const bool crouching = pl->crouching || (pl->eyeheight < pl->maxeyeheight && pl->eyeheight > 1.1f);
-        const float sprintspeed = pl->sprinting ? 1.6f : 0.9f; // 1.6x speed when sprinting
-        const float speed = curtime/(water ? 2000.0f : 1000.0f)*pl->maxspeed*(crouching && pl->state != CS_EDITING ? chspeed : 1.0f)*(pl==player1 && isfly ? flyspeed : 1.0f)*sprintspeed;
-        const float friction = water ? 20.0f : (pl->onfloor || isfly ? 6.0f : (pl->onladder ? 1.5f : 30.0f));
+        const float sprintspeed = pl->sprinting && pl->onfloor ? 1.6f : 0.92f; // 1.6x speed when sprinting
+        const float speed = curtime/(water ? 2000.0f : 1000.0f)*pl->maxspeed*(pl==player1 && isfly ? flyspeed : 1.0f)*sprintspeed;
+        float friction = water ? 20.0f : (pl->onfloor || isfly ? 3.0f : (pl->onladder ? 1.5f : 35.0f));
+        if (crouching) {friction = 35.0f;}
         const float fpsfric = max(friction/curtime*20.0f, 1.0f);
 
         d.x = (float)(move*cosf(RAD*(pl->yaw-90)));
@@ -529,10 +533,11 @@ void moveplayer(physent *pl, int moveres, bool local, int curtime)
                             pl->jumpnext = false;
                             bool doublejump = pl->lastjump && lastmillis - pl->lastjump < 250 && pl->strafe != 0 && pl->o.z - pl->eyeheight - pl->lastjumpheight > 0.2f;
                             pl->lastjumpheight = pl->o.z - pl->eyeheight;
-                            pl->vel.z = pl->sprinting ? 1.3f : 2.1f; // physics impulse upwards (reduced when sprinting)
-                            if(doublejump && curfullspeed > 0.1f) // more velocity on double jump
+                            pl->vel.z = pl->sprinting ? 2.7f : 2.4f; // physics impulse upwards (reduced when sprinting)
+                            if(doublejump && curfullspeed > 0.1f) // more velocity on double jump - speed independent
                             {
-                                pl->vel.mul(1.25f / max(pl->vel.magnitudexy() / curfullspeed, 1.0f));
+                                // Apply fixed multiplier instead of speed-dependent scaling
+                                pl->vel.mul(1.25f);
                             }
                             if(water) // dampen velocity change even harder, gives correct water feel
                             {
@@ -843,7 +848,9 @@ void moveplayer(physent *pl, int moveres, bool local, int curtime)
         
         if(pl->type==ENT_BOUNCE) { 
             // Gentler ceiling bounce - only reverse 0.1% of Z velocity
-            pl->vel.z = -pl->vel.z * 0.001f; 
+            //conoutf("BOUNCE Z-HIT: vel.z was %f", pl->vel.z);
+            pl->vel.z = 0;// -pl->vel.z * 0.001f; 
+            pl->timeinair = 0;
             //pl->vel.mul(0.5f); 
         }
         break;
@@ -998,6 +1005,13 @@ dir(right,    strafe, -1, k_right, k_left)
 void attack(bool on)
 {
     if(intermission || (ispaused && player1->state == CS_ALIVE) || ispaused) return;
+    
+    // Cancel sprinting when starting to attack
+    if(on && player1->sprinting)
+    {
+        sprint(false);
+    }
+    
     if(editmode) editdrag(on);
     else if(player1->state==CS_DEAD || player1->state==CS_SPECTATE)
     {
@@ -1031,6 +1045,7 @@ void updatesprint(playerent *p, bool on)
 {
     if(p->sprinting == on) return;
     if(p->state == CS_EDITING || p->crouching) return; // don't sprint when editing or crouching
+    // Removed air sprint restriction - now you can sprint mid-air!
     p->sprinting = on;
     
     if(on)
@@ -1054,6 +1069,12 @@ void updatesprint(playerent *p, bool on)
         
         // Set to hands state (safe null object)
         p->weaponsel = p->weapons[GUN_HANDS];
+        
+        // Notify server of weapon change to hands if this is the local player
+        if(p == player1)
+        {
+            addmsg(SV_WEAPCHANGE, "ri", GUN_HANDS);
+        }
     }
     else
     {
@@ -1063,11 +1084,23 @@ void updatesprint(playerent *p, bool on)
             // Apply the pending weapon switch instead of restoring the old weapon
             p->weaponsel = p->pending_weapon_switch;
             p->pending_weapon_switch = NULL;
+            
+            // Notify server of weapon change if this is the local player
+            if(p == player1)
+            {
+                addmsg(SV_WEAPCHANGE, "ri", p->weaponsel->type);
+            }
         }
         else if(p->weapon_before_sprint)
         {
             // Re-equip stored weapon when sprint ends (only if no pending switch)
             p->weaponsel = p->weapon_before_sprint;
+            
+            // Notify server of weapon change if this is the local player
+            if(p == player1)
+            {
+                addmsg(SV_WEAPCHANGE, "ri", p->weaponsel->type);
+            }
         }
         p->weapon_before_sprint = NULL;
     }

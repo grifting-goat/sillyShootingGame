@@ -667,7 +667,24 @@ void parsemessages(int cn, playerent *d, ucharbuf &p, bool demo = false)
                 playerent *s = getclient(scn);
                 if(!s || !valid_weapon(gun)) break;
                 loopk(3) from[k] = s->o.v[k];
-                if(gun==GUN_SHOTGUN) createrays(from, to);
+                if(gun==GUN_SHOTGUN) {
+                    // Use new 14-pellet system instead of old createrays
+                    for (int i = 0; i < 13; i++) {
+                        vec pelletTarget = to;
+                        float perf = 0.40f + ((i%3) * 0.40f);
+                        if (s->type == ENT_BOT) {perf *= 0.07f;}
+                        pelletTarget.x += (rnd(100) - 50) * perf;
+                        pelletTarget.y += (rnd(100) - 50) * perf;
+                        pelletTarget.z += (rnd(100) - 50) * perf;
+                        
+                        if(s->weapons[gun]) s->weapons[gun]->attackfx(from, pelletTarget, -1);
+                    }
+                    // 14th accurate pellet
+                    if(s->weapons[gun]) s->weapons[gun]->attackfx(from, to, -1);
+                } else if(s->weapons[gun]) {
+                    s->weapons[gun]->attackfx(from, to, -1);
+                }
+                
                 s->lastaction = lastmillis;
                 s->weaponchanging = 0;
                 s->mag[gun]--;
@@ -675,7 +692,6 @@ void parsemessages(int cn, playerent *d, ucharbuf &p, bool demo = false)
                 {
                     s->lastattackweapon = s->weapons[gun];
                     s->weapons[gun]->gunwait = s->weapons[gun]->info.attackdelay;
-                    s->weapons[gun]->attackfx(from, to, -1);
                     s->weapons[gun]->reloading = 0;
                 }
                 s->pstatshots[gun]++; //NEW

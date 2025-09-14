@@ -53,14 +53,13 @@ void processevent(client *c, shotevent &e)
 //         int(e.from[0]*DMF), int(e.from[1]*DMF), int(e.from[2]*DMF),
         int(e.to[0]*DMF), int(e.to[1]*DMF), int(e.to[2]*DMF),
         c->clientnum);
-    gs.shotdamage += guns[e.gun].damage*(e.gun==GUN_SHOTGUN ? SGMAXDMGLOC : 1); // 2011jan17:ft: so accuracy stays correct, since SNIPER:headshot also "exceeds expectations" we use SGMAXDMGLOC instead of SGMAXDMGABS!
+    gs.shotdamage += guns[e.gun].damage; // Simple damage tracking for all weapons
     switch(e.gun)
     {
         case GUN_GRENADE: gs.grenades.add(e.id); break;
         default:
         {
-            int totalrays = 0, maxrays = e.gun==GUN_SHOTGUN ? 3*SGRAYS: 1;
-            int tothits_c = 0, tothits_m = 0, tothits_o = 0; // sgrays
+            int totalrays = 0, maxrays = e.gun == GUN_SHOTGUN ? 14 : 1;
             for(int i = 1; i<c->events.length() && c->events[i].type==GE_HIT; i++)
             {
                 hitevent &h = c->events[i].hit;
@@ -70,63 +69,47 @@ void processevent(client *c, shotevent &e)
 
                 int rays = 1, damage = 0;
                 bool gib = false;
-                if(e.gun == GUN_SHOTGUN)
+                
+                damage = rays*guns[e.gun].damage;
+                gib = e.gun == GUN_KNIFE;
+                if(h.info != 0) // headshot
                 {
-                    int bonusdist = h.info&0xFF;
-                    int numhits_c = (h.info & 0x0000FF00) >> 8, numhits_m = (h.info & 0x00FF0000) >> 16, numhits_o = (h.info & 0xFF000000) >> 24;
-                    tothits_c += numhits_c; tothits_m += numhits_m; tothits_o += numhits_o;
-                    rays = numhits_c + numhits_m + numhits_o;
-
-                    if(rays < 1 || tothits_c > SGRAYS || tothits_m > SGRAYS || tothits_o > SGRAYS || bonusdist > SGDMGBONUS) continue;
-
-                    gib = false; // Don't auto-gib based on rays for shotgun
-                    float fdamage = (SGDMGTOTAL/(21*100.0f)) * (numhits_o * SGCOdmg/10.0f + numhits_m * SGCMdmg/10.0f + numhits_c * SGCCdmg/10.0f);
-                    fdamage += (float)bonusdist;
-                    damage = (int)ceil(fdamage);
-                    if(damage > 99) damage = 99;  // Cap shotgun damage at 99
-#ifdef ACAC
-                    if (!sg_engine(target, c, numhits_c, numhits_m, numhits_o, bonusdist)) continue;
-#endif
-                }
-                else
-                {
-                    damage = rays*guns[e.gun].damage;
-                    gib = e.gun == GUN_KNIFE;
-                    if(h.info != 0) // headshot
+                    switch(e.gun)
                     {
-                        switch(e.gun)
-                        {
-                            case GUN_SNIPER: 
-                                gib = true;
-                                damage *= 3;
-                                break;
-                            case GUN_ASSAULT:
-                                gib = true;
-                                damage *= 2;
-                                break;
-                            case GUN_CARBINE:
-                                gib = true;
-                                damage *= 2;
-                                break;
-                            case GUN_SUBGUN:
-                                gib = false;
-                                damage = (int)(damage * 1.3f);
-                                break;
-                            case GUN_PISTOL:
-                                gib = true;
-                                damage = (int)(damage * 2.25f);
-                                break;
-                            case GUN_AKIMBO:
-                                gib = true;
-                                damage = (int)(damage * 1.5f);
-                                break;
-                            case GUN_FLINTLOCK:
-                                gib = true;
-                                damage *= 3;
-                                break;
-                            default:
-                                break;
-                        }
+                        case GUN_SNIPER: 
+                            gib = true;
+                            damage *= 3;
+                            break;
+                        case GUN_ASSAULT:
+                            gib = true;
+                            damage *= 2;
+                            break;
+                        case GUN_CARBINE:
+                            gib = true;
+                            damage *= 2;
+                            break;
+                        case GUN_SUBGUN:
+                            gib = false;
+                            damage = (int)(damage * 1.3f);
+                            break;
+                        case GUN_PISTOL:
+                            gib = true;
+                            damage = (int)(damage * 2.25f);
+                            break;
+                        case GUN_AKIMBO:
+                            gib = true;
+                            damage = (int)(damage * 1.5f);
+                            break;
+                        case GUN_FLINTLOCK:
+                            gib = true;
+                            damage *= 3;
+                            break;
+                        case GUN_SHOTGUN:
+                            gib = true;
+                            damage = (int)(damage * 1.2f); // 1.2x headshot multiplier for shotgun
+                            break;
+                        default:
+                            break;
                     }
                 }
                 totalrays += rays;

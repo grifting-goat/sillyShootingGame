@@ -510,8 +510,10 @@ itemstat ammostats[NUMGUNS] =
     { 10, 220,  15,  S_ITEMAMMO  },   // sniper
     { 40, 560,  60,  S_ITEMAMMO  },   // assault
     {  1,  5,   5,  S_ITEMAMMO  },   // grenade
-    {140,  0, 140,  S_ITEMAKIMBO},   // akimbo
-    { 20, 260, 100,  S_ITEMAMMO  }    // flintlock
+    {140,  2000, 2000,  S_ITEMAKIMBO},   // akimbo
+    { 20, 260, 100,  S_ITEMAMMO  },    // flintlock
+    {  1,  1,   1,  S_ITEMAMMO  },   // hands dummy
+    {  1,  3,   5,  S_ITEMAMMO  }    // healthfood
 };
 
 itemstat powerupstats[I_ARMOUR-I_HEALTH+1] =
@@ -528,17 +530,19 @@ guninfo guns[NUMGUNS] =
     //reI: recoilincrease && reB: recoilbase && reM: maxrecoil && reF: recoilbackfade
     //pFX: pushfactor
     //modelname                 sound                reloadtime        damage    projspeed  spread     magsize    mKB      reB          reF        isauto
-    //             title                      reload       attackdelay      piercing     part     recoil       mKR     reI        reM        pFX
-    { "knife",   "Knife",        S_KNIFE,   S_NULL,     0,      500,    90, 100,     0,   0,  1,    0,   0,    0,  0,   0,   0,    0,    0,   1,   true },
-    { "pistol",  "Pistol",       S_PISTOL,  S_RPISTOL,  2020,   320,    25,   19,     0,   0,  0,   50,   14,   6,  5,   6,  35,   58,   125,  1,   false },
-    { "carbine", "TMP-M&A CB",   S_CARBINE, S_RCARBINE, 2020,   650,    60,  50,     0,   0,  0,   0,   8,   4,  4,  10,  60,   60,   150,  2,   false },
-    { "shotgun", "V-19 CS",      S_SHOTGUN, S_RSHOTGUN, 2560,  800,    0,    0,     0,   0,  0,   130,   6,   9,  9,  10, 140,  140,   125,  4,   false },   // CAUTION dmg only sane for server!
-    { "subgun",  "A-ARD/10 SMG", S_SUBGUN,  S_RSUBGUN,  3000,   85,     12,   0,     0,   0,  0,   20,   40,   1,  2,   5,  25,   50,   188,  1,   true  },
-    { "sniper",  "AD-81 SR",     S_SNIPER,  S_RSNIPER,  3320,   900,   86,  40,      0,   0,  45,   80,   5,   4,  4,  10,  85,   85,   100,  2,   false },
-    { "assault", "MTP-57 AR",    S_ASSAULT, S_RASSAULT, 2560,   150,    23,   20,     0,   0,  0,   10,   30,   0,  2,   3,  25,   50,   115,  1,   true  },
-    { "grenade", "Grenades",     S_NULL,    S_NULL,     1000,   650,    50,  0,    20,   6,  0,    0,   1,    3,  1,   0,   0,    0,    0,   5,   false },
-    { "pistol",  "Akimbo",       S_PISTOL,  S_RAKIMBO,  1000,   65,     18,   0,     0,   0,  0,   20,   40,   6,  5,   4,  15,   25,   115,  1,   true  },
-    { "flintlock",  "Flintlock",    S_PISTOL,  S_RPISTOL,  2020,   320,    90,   20,     0,   0,  0,   400,   1,    6,  5,   6,  35,   58,   125,  6,   false },
+    //              title                      reload       attackdelay      piercing     part     recoil       mKR     reI        reM        pFX
+    { "knife",   "Knife",        S_KNIFE,   S_NULL,     0,      450,    65, 100,     0,   0,  1,    0,   3,    0,  0,   0,   0,    0,    0,   350,   true },
+    { "pistol",  "Pistol",       S_PISTOL,  S_RPISTOL,  2020,   290,    25,  19,     0,   0,  0,   50,   14,   6,  5,   6,  35,   58,   125,  120,   false },
+    { "carbine", "TMP-M&A CB",   S_CARBINE, S_RCARBINE, 2020,   690,    60,  50,     0,   0,  0,   0,     8,   4,  4,  10,  60,   60,   150,  200,   false },
+    { "shotgun", "V-19 CS",      S_SHOTGUN, S_RSHOTGUN, 2560,  870,     7,    0,     0,   0,  0,   130,   6,   0,  0,   0,   0,    0,     0,  65,   false },   // CAUTION dmg only sane for server!
+    { "subgun",  "A-ARD/10 SMG", S_SUBGUN,  S_RSUBGUN,  3000,   85,     12,   0,     0,   0,  0,   20,   40,   1,  2,   5,  25,   50,   188,  90,   true  },
+    { "sniper",  "AD-81 SR",     S_SNIPER,  S_RSNIPER,  3320,   910,    86,  40,     0,   0,  45,   80,   5,   4,  4,  10,  85,   85,   100,  220,   false },
+    { "assault", "MTP-57 AR",    S_ASSAULT, S_RASSAULT, 2560,   135,    25,  20,     0,   0,  0,   10,   30,   0,  2,   3,  25,   50,   115,  100,   true  },
+    { "grenade", "Grenades",     S_NULL,    S_NULL,     1000,   650,    80,  0,      20,  6,  0,    0,   1,    3,  1,   0,   0,    0,    0,   500,   false },
+    { "pistol",  "Akimbo",       S_PISTOL,  S_RAKIMBO,  1000,   60,     18,  0,      0,   0,  0,   20,   40,   6,  5,   4,  15,   25,   115,  110,   true  },
+    { "flintlock","Flintlock",   S_PISTOL,  S_RPISTOL,  2020,   320,    99,  20,     0,   0,  0,   400,   1,   6,  5,   6,  35,   58,   125,  600,   false },
+    { "hands",   "Hands",        S_NULL,    S_NULL,     0,      450,    0,   0,      0,   0,  0,    0,   0,    0,  0,   0,   0,    0,    0,   0,     false },
+    { "healthfood", "Health Food", S_PISTOL, S_RPISTOL, 1300,     0,    45,   0,      0,   0,  0,    0,   1,   0,  0,   0,  0,   0,   0,  0,   false },
 };
 
 const char *gunnames[NUMGUNS + 1];
@@ -551,8 +555,8 @@ const char *rolenames[CR_NUM + 1] = { "unarmed", "master", "admin", "owner", "" 
 
 const char *killmessages[2][NUMGUNS] =
 {
-    { "",        "dispatched", "jorked",     "peppered",   "killed",     "penetrated", "shredded",      "", "busted", "disassembled" },
-    { "london'd", "executed",  "ejorkulated","splattered", "anihilated",   "headshot",  "domed","exploded", "busted all over", "jfk'd"}
+    { "",        "dispatched", "jorked",     "peppered",   "killed",     "penetrated", "shredded",      "", "busted", "disassembled", "", "nourished" },
+    { "london'd", "executed",  "ejorkulated","splattered", "anihilated",   "headshot",  "domed","exploded", "busted all over", "jfk'd", "", "force-fed"}
 };
 
 #define C(x) (1<<(SC_##x))

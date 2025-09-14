@@ -689,6 +689,15 @@ void updateworld(int curtime, int lastmillis)        // main game update loop
     syncentchanges();
     physicsframe();
     checkweaponstate();
+    
+    // Update knife lunge knockback window
+    extern void updateknifelungeknockback();
+    updateknifelungeknockback();
+    
+    // Update knife charge regeneration
+    extern void updateknifecharges();
+    updateknifecharges();
+    
     if(getclientnum()>=0) shoot(player1, worldpos);     // only shoot when connected to server
     movebounceents();
     moveotherplayers();
@@ -974,6 +983,34 @@ void dokill(playerent *pl, playerent *act, bool gib, int gun)
         if(!m_mp(gamemode)) act->frags--;
     }
     else if(!m_mp(gamemode)) act->frags += ( gib && gun != GUN_GRENADE && gun != GUN_SHOTGUN) ? 2 : 1;
+
+    // Health siphon: restore health to killer on enemy kill (disabled in SOT style TDM)
+    extern int healthsiphon, siphonheal;
+    if(healthsiphon && !m_botslowtdm && !m_slowtdm && pl != act && !isteam(pl->team, act->team) && act == player1)
+    {
+        int newhealth = min(act->health + siphonheal, 100);
+        act->health = newhealth;
+    }
+
+    // Auto reload: reload weapon after kill (disabled in SOT style TDM)
+    extern int killreload;
+    if(killreload && !m_botslowtdm && !m_slowtdm && pl != act && !isteam(pl->team, act->team) && act == player1)
+    {
+        // Instantly refill magazine
+        if(act->weaponsel && act->weaponsel->ammo > 0)
+        {
+            int maxmag = act->weaponsel->info.magsize+1;
+            int needed = maxmag - act->weaponsel->mag;
+            int available = min(needed, act->weaponsel->ammo);
+            
+            act->weaponsel->mag += available;
+            act->weaponsel->ammo -= available;
+        }
+        
+        // Add knife charge restoration
+        extern void addknifecharge();
+        addknifecharge();
+    }
 
     if(gib)
     {

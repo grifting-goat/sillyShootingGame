@@ -149,6 +149,16 @@ struct pistol : gun
     bool selectable();
 };
 
+struct healthfood : gun
+{
+    healthfood(playerent *owner);
+    bool attack(vec &targ);
+    bool reload(bool autoreloaded);
+    void onselecting(bool sound);
+    void checkautoreload();
+    bool selectable();
+};
+
 struct flintlock : gun
 {
     flintlock(playerent *owner);

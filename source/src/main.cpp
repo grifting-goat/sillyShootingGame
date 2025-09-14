@@ -626,7 +626,7 @@ void setupscreen(int &useddepthbits, int &usedfsaa)
             SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, config&4 ? fsaa : 0);
         }
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-        screen = SDL_CreateWindow("AssaultCube",
+        screen = SDL_CreateWindow("SillyShootingGame",
             SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
             winw, winh,
             SDL_WINDOW_OPENGL | flags);

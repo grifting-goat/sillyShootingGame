@@ -56,7 +56,7 @@ struct entity : persistent_entity
     }
 };
 
-enum { GUN_KNIFE = 0, GUN_PISTOL, GUN_CARBINE, GUN_SHOTGUN, GUN_SUBGUN, GUN_SNIPER, GUN_ASSAULT, GUN_GRENADE, GUN_AKIMBO, GUN_FLINTLOCK, GUN_HANDS, NUMGUNS };
+enum { GUN_KNIFE = 0, GUN_PISTOL, GUN_CARBINE, GUN_SHOTGUN, GUN_SUBGUN, GUN_SNIPER, GUN_ASSAULT, GUN_GRENADE, GUN_AKIMBO, GUN_FLINTLOCK, GUN_HANDS, GUN_HEALTHFOOD, NUMGUNS };
 #define valid_weapon(g) ((g) >= GUN_KNIFE && (g) < NUMGUNS)
 #define reloadable_gun(g) ((g) != GUN_KNIFE && (g) != GUN_GRENADE && (g) != GUN_HANDS)
 
@@ -288,7 +288,7 @@ public:
             case I_CLIPS: return ammo[akimbo && ammo[GUN_AKIMBO]<ammostats[GUN_AKIMBO].max ? GUN_AKIMBO : GUN_SNIPER]<ammostats[akimbo && ammo[GUN_AKIMBO]<ammostats[GUN_AKIMBO].max ? GUN_AKIMBO : GUN_SNIPER].max;
             case I_AMMO: return ammo[primary]<ammostats[primary].max;
             case I_GRENADE: return mag[GUN_GRENADE]<ammostats[GUN_GRENADE].max;
-            case I_HEALTH: return health<powerupstats[type-I_HEALTH].max;
+            case I_HEALTH: return ammo[GUN_HEALTHFOOD]<ammostats[GUN_HEALTHFOOD].max;
             case I_HELMET:
             case I_ARMOUR: return armour<powerupstats[type-I_HEALTH].max;
             case I_AKIMBO: return !akimbo;
@@ -312,7 +312,7 @@ public:
                 break;
             case I_AMMO: additem(ammostats[primary], ammo[primary]); break;
             case I_GRENADE: additem(ammostats[GUN_GRENADE], mag[GUN_GRENADE]); break;
-            case I_HEALTH: additem(powerupstats[type-I_HEALTH], health); break;
+            case I_HEALTH: additem(ammostats[GUN_HEALTHFOOD], ammo[GUN_HEALTHFOOD]); break;
             case I_HELMET:
             case I_ARMOUR:
                 additem(powerupstats[type-I_HEALTH], armour); break;
@@ -331,7 +331,14 @@ public:
         gunselect = GUN_SNIPER;
         akimbo = false;
         loopi(NUMGUNS) ammo[i] = mag[i] = gunwait[i] = 0;
-        ammo[GUN_KNIFE] = mag[GUN_KNIFE] = 1;
+#ifndef STANDALONE
+        extern int knifecharges;
+        ammo[GUN_KNIFE] = 0;
+        mag[GUN_KNIFE] = knifecharges; // Set knife charges from configuration
+#else
+        ammo[GUN_KNIFE] = 0;
+        mag[GUN_KNIFE] = 3; // Default knife charges for standalone server
+#endif
     }
 
     virtual void spawnstate(int gamemode)
@@ -351,6 +358,10 @@ public:
             ammo[GUN_PISTOL] = ammostats[GUN_PISTOL].start-magsize(GUN_PISTOL);
             mag[GUN_PISTOL] = magsize(GUN_PISTOL);
         }
+
+        // Give healthfood weapon ammo but start unloaded
+        ammo[GUN_HEALTHFOOD] = ammostats[GUN_HEALTHFOOD].start;
+        mag[GUN_HEALTHFOOD] = 0; // Always start unloaded
 
         if(!m_noprimary)
         {
@@ -386,8 +397,8 @@ public:
             // LMS mode uses same grenade count as other modes
         }
         
-        // Bot Slow TDM: limit all magazines to 1 bullet, enable grenades
-        if(m_botslowtdm)
+        // Slow TDM modes: limit all magazines to 1 bullet, enable grenades
+        if(m_botslowtdm || m_slowtdm)
         {
             loopi(NUMGUNS) if(mag[i] > 1) mag[i] = 1;
             ammo[GUN_GRENADE] = 2;
@@ -435,7 +446,7 @@ public:
 };
 
 #ifndef STANDALONE
-#define HEADSIZE 0.4f
+#define HEADSIZE 0.43f
 
 #define ROLLMOVMAX 20
 #define ROLLMOVDEF 0
@@ -524,9 +535,14 @@ public:
     {
         if(!valid_weapon(gun)) return;
         vec push(dir);
-        push.mul(damage/250.0f*guns[gun].pushfactor + guns[gun].pushfactor/2.1f);
-        push.z += (damage/250.0f*guns[gun].pushfactor + guns[gun].pushfactor/2.9f); // add some vertical push
+        float pf = guns[gun].pushfactor * 0.01f;
+        push.mul(damage/270.0f*pf + pf/2.2f);
+        if (push.z < 0) {push.z = 0;}
+        push.z += (damage/270.0f*pf + pf/3.0f); // add some vertical push
         vel.add(push);
+        
+        timeinair /= 1.1f;
+        
         extern int lastmillis;
         if(gun==GUN_GRENADE && damage > 50) eardamagemillis = lastmillis+damage*100;
     }

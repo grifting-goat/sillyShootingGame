@@ -42,3 +42,15 @@ profile/*
 logs/*
 private/*
 .DS_Store
+
+# Visual Studio temporary files and folders
+source/vcpp/.vs/
+source/vcpp/Release/
+source/vcpp/Debug/
+source/vcpp/Standalone/
+*.suo
+*.user
+*.sdf
+*.opensdf
+*.vcxproj.filters
+*.vcxproj.user

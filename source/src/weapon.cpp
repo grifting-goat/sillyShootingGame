@@ -7,6 +7,33 @@
 VARP(autoreload, 0, 1, 1);
 VARP(akimboautoswitch, 0, 1, 1);
 VARP(akimboendaction, 0, 3, 3); // 0: switch to knife, 1: stay with pistol (if has ammo), 2: switch to grenade (if possible), 3: switch to primary (if has ammo) - all fallback to previous one w/o ammo for target
+VARP(akimbotimer, 10000, 60000, 120000); // Akimbo duration in milliseconds (10 seconds to 2 minutes)
+
+// Knife lunge configuration
+FVARP(knifelungeforce, 1.0f, 5.2f, 20.0f); // Horizontal lunge force
+FVARP(knifelungehop, 0.0f, 1.2f, 5.0f);    // Vertical hop when lunging
+VARP(knifelungecooldown, 100, 300, 5000);  // Cooldown in milliseconds (default: 1 second)
+FVARP(knifeknockback, 0.0f, 5.0f, 10.0f);  // Knockback force applied to hit players
+FVARP(knifeknockrange, 1.0f, 3.0f, 8.0f);  // Range to detect players for knockback
+VARP(knifelungeduration, 100, 700, 1000);  // Duration of lunge knockback window in milliseconds
+
+// Knife charge configuration
+VARP(knifecharges, 1, 3, 10);                // Maximum knife charges
+VARP(knifechargetime, 1000, 3000, 10000);    // Time to regenerate one charge (3 seconds default)
+
+// Lunge state tracking
+static int lungeStartTime = 0;
+static bool isLunging = false;
+
+// Charge tracking
+static int lastChargeTime = 0;
+
+// Health siphon configuration
+VARP(healthsiphon, 0, 1, 1);               // Toggle: 0=disabled, 1=enabled
+VARP(siphonheal, 10, 30, 200);            // Amount of health to restore on kill
+
+// Kill reload configuration  
+VARP(killreload, 0, 1, 1);                // Toggle: 0=disabled, 1=enabled
 
 extern int bulletpenetration;
 
@@ -155,6 +182,164 @@ void quicknadethrow(bool on)
     }
 }
 COMMAND(quicknadethrow, "d");
+
+// Knife lunge function - applies forward momentum when right-clicking with knife
+void knifelunge(bool on)
+{
+    if(player1->state != CS_ALIVE) return;
+    if(!on) return; // Only trigger on key press, not release
+    if(m_botslowtdm || m_slowtdm) return; // Disable knife lunges in SOT style TDM modes
+    
+    // Check cooldown timer
+    static int lastLungeTime = 0;
+    if(lastmillis - lastLungeTime < knifelungecooldown) return;
+    
+    // Only lunge if currently holding the knife or akimbo pistols AND have charges
+    if(player1->weaponsel && (player1->weaponsel->type == GUN_KNIFE || player1->weaponsel->type == GUN_AKIMBO))
+    {
+        // For knife, check if we have charges
+        if(player1->weaponsel->type == GUN_KNIFE && player1->weaponsel->mag <= 0)
+        {
+            // No charges available - play sound or show message
+            audiomgr.playsound(S_NOAMMO, player1, SP_HIGH);
+            return;
+        }
+        
+        // Consume a charge for knife lunge
+        if(player1->weaponsel->type == GUN_KNIFE)
+        {
+            player1->weaponsel->mag--;
+            // Notify server
+            addmsg(SV_SHOOT, "ri2i3i", lastmillis, GUN_KNIFE, 0, 0, 0, 0);
+        }
+        
+        // Apply velocity based on player's looking direction (yaw + pitch)
+        float yaw = player1->yaw * RAD;
+        float pitch = player1->pitch * RAD;
+        player1->timeinair = 0.0f;
+        
+        // Calculate 3D direction vector based on yaw and pitch
+        vec lungeDirection;
+        lungeDirection.x = cosf(yaw - PI/2) * cosf(pitch); // Forward X with pitch consideration
+        lungeDirection.y = sinf(yaw - PI/2) * cosf(pitch); // Forward Y with pitch consideration  
+        lungeDirection.z = sinf(pitch);                     // Vertical component from pitch
+        
+        // Apply the lunge force to player velocity using configurable values
+        player1->vel.x += lungeDirection.x * knifelungeforce;
+        player1->vel.y += lungeDirection.y * knifelungeforce;
+        player1->vel.z += (lungeDirection.z * knifelungeforce) + knifelungehop;
+    
+        
+        // Start lunge knockback window
+        isLunging = true;
+        lungeStartTime = lastmillis;
+        
+        // Update last lunge time
+        lastLungeTime = lastmillis;
+    }
+}
+COMMAND(knifelunge, "d");
+
+// Function to handle ongoing lunge knockback during the lunge window
+void updateknifelungeknockback()
+{
+    // Check if we're currently in a lunge state
+    if(!isLunging) return;
+    
+    // Check if lunge duration has expired
+    if(lastmillis - lungeStartTime > knifelungeduration)
+    {
+        isLunging = false;
+        return;
+    }
+    
+    // Only apply knockback if player is alive and holding knife or akimbo
+    if(player1->state != CS_ALIVE || !player1->weaponsel || 
+       (player1->weaponsel->type != GUN_KNIFE && player1->weaponsel->type != GUN_AKIMBO)) 
+    {
+        isLunging = false;
+        return;
+    }
+    
+    // Check for nearby players to knock back
+    if(knifeknockback > 0.0f)
+    {
+        extern vector<playerent *> players;
+        loopv(players)
+        {
+            playerent *target = players[i];
+            if(!target || target == player1 || target->state != CS_ALIVE) continue;
+            
+            // Calculate distance to target
+            vec dist = vec(target->o).sub(player1->o);
+            float distance = dist.magnitude();
+            
+            // If within knockback range, apply knockback
+            if(distance <= knifeknockrange && distance > 0.1f)
+            {
+                // Normalize distance vector for direction
+                dist.normalize();
+                
+                // Apply knockback force in direction away from lunging player
+                // Scale down the force since this is called every frame
+                float frameKnockback = knifeknockback * 0.1f;
+                target->vel.x += dist.x * frameKnockback;
+                target->vel.y += dist.y * frameKnockback;
+                target->vel.z += (dist.z > 0 ? dist.z : 0) * frameKnockback + 0.2f; // Reduced vertical knockback
+            }
+        }
+    }
+}
+
+// Toggle health siphon on/off
+COMMANDF(togglesiphon, "", () { 
+    healthsiphon = !healthsiphon; 
+    conoutf("Health siphon %s", healthsiphon ? "enabled" : "disabled");
+});
+
+// Toggle auto reload on/off
+COMMANDF(togglekillreload, "", () { 
+    killreload = !killreload; 
+    conoutf("Kill reload %s", killreload ? "enabled" : "disabled");
+});
+
+// Function to update knife charges - regenerates charges over time
+void updateknifecharges()
+{
+    if(!player1 || player1->state != CS_ALIVE) return;
+    
+    weapon *knife = player1->weapons[GUN_KNIFE];
+    if(!knife) return;
+    
+    // Regenerate charges over time
+    if(lastmillis - lastChargeTime >= knifechargetime && knife->mag < knifecharges)
+    {
+        knife->mag++;
+        lastChargeTime = lastmillis;
+        
+        // Notify server of charge regeneration
+        if(knife->mag <= knifecharges)
+        {
+            addmsg(SV_RELOAD, "ri2", lastmillis, GUN_KNIFE);
+        }
+    }
+}
+
+// Function to restore charge on kill
+void addknifecharge()
+{
+    if(!player1 || player1->state != CS_ALIVE) return;
+    
+    weapon *knife = player1->weapons[GUN_KNIFE];
+    if(!knife || knife->mag >= knifecharges) return;
+    
+    knife->mag++;
+    // Reset the charge timer so we don't double-charge
+    lastChargeTime = lastmillis;
+    
+    // Notify server
+    addmsg(SV_RELOAD, "ri2", lastmillis, GUN_KNIFE);
+}
 
 COMMANDF(currentprimary, "", () { intret(player1->primweap->type); });
 COMMANDF(prevweapon, "", () { intret(player1->prevweaponsel->type); });
@@ -797,107 +982,14 @@ void raydamage(vec &from, vec &to, playerent *d)
     int dam = d->weaponsel->info.damage;
     int hitzone = -1;
     playerent *o = NULL;
-    float distsquared, hitdistsquared = 0.0f;
+    float distsquared;
     bool hit = false;
     int rayscount = 0, hitscount = 0;
-    if(d->weaponsel->type==GUN_SHOTGUN)
-    {
-        playerent *hits[3*SGRAYS];
-        loopk(3)
-        loopi(SGRAYS)
-        {
-            rayscount++;
-            int h = k*SGRAYS + i;
-            if((hits[h] = intersectclosest(from, sgr[h].rv, d, distsquared, hitzone)))
-                shorten(from, sgr[h].rv, (hitdistsquared = distsquared));
-        }
-        loopk(3)
-        loopi(SGRAYS)
-        {
-            int h = k*SGRAYS + i;
-            if(hits[h])
-            {
-                o = hits[h];
-                hits[h] = NULL;
-                int numhits_o, numhits_m, numhits_c;
-                numhits_o = numhits_m = numhits_c = 0;
-                switch(sgr[h].ds)
-                {
-                    case 0: numhits_o++; break;
-                    case 1: numhits_m++; break;
-                    case 2: numhits_c++; break;
-                    default: break;
-                }
-                for(int j = i+1; j < 3*SGRAYS; j++) if(hits[j] == o)
-                {
-                    hits[j] = NULL;
-                    switch(sgr[j].ds)
-                    {
-                        case 0: numhits_o++; break;
-                        case 1: numhits_m++; break;
-                        case 2: numhits_c++; break;
-                        default: break;
-                    }
-                }
-                int numhits = numhits_o + numhits_m + numhits_c;
-                int dmgreal = 0;
-                float dmg4r = 0.0f;
-                bool withBONUS = false;
-                if(SGDMGBONUS)
-                {
-                    float d2o = SGDMGDISTB;
-                    if(o) d2o = vec(from).sub(o->o).magnitude();
-                    if(d2o <= (SGDMGDISTB/10.0f) && numhits)
-                    {
-                        dmg4r += SGDMGBONUS;
-                        withBONUS = true;
-                    }
-                }
-                dmg4r += (SGCOdmg / 10.0f * SGDMGTOTAL / 100.0f) * numhits_o / 21.0f;
-                dmg4r += (SGCMdmg / 10.0f * SGDMGTOTAL / 100.0f) * numhits_m / 21.0f;
-                dmg4r += (SGCCdmg / 10.0f * SGDMGTOTAL / 100.0f) * numhits_c / 21.0f;
-                dmgreal = (int) ceil(dmg4r);
-                if(dmgreal > 99) dmgreal = 99;  // Cap shotgun damage at 99
-                int info = (withBONUS ? SGDMGBONUS : 0) | (numhits_c << 8) | (numhits_m << 16) | (numhits_o << 24);
-                
-                // Check for shotgun crosshair effects
-                if(d == player1 && o && numhits)
-                {
-                    extern int lastkillflash;
-                    extern int lastheadshotflash;
-                    extern int lastheadshot;
-                    bool isHeadshot = (dmgreal > 70); // Shotgun headshot if damage > 70
-                    
-                    if(isHeadshot && o->health <= dmgreal)
-                    {
-                        // Lethal headshot with shotgun
-                        lastheadshot = lastmillis;
-                    }
-                    else if(isHeadshot && o->health > dmgreal)
-                    {
-                        // Non-lethal headshot with shotgun
-                        lastheadshotflash = lastmillis;
-                    }
-                    else if(!isHeadshot && o->health <= dmgreal)
-                    {
-                        // Regular shotgun kill (non-headshot)
-                        lastkillflash = lastmillis;
-                    }
-                }
-                
-                if(numhits) hitpush(dmgreal, o, d, from, to, d->weaponsel->type, false, info);
-
-                if(d == player1) hit = true;
-                hitscount+=numhits;
-            }
-        }
-        if(hitscount) shorten(from, to, hitdistsquared);
-    }
-    else if((o = intersectclosest(from, to, d, distsquared, hitzone)))
+    
+    if((o = intersectclosest(from, to, d, distsquared, hitzone)))
     {
         bool gib = false;
         bool isHeadshot = (hitzone == 2);
-        int originalDamage = dam;
         
         switch(d->weaponsel->type)
         {
@@ -905,6 +997,7 @@ void raydamage(vec &from, vec &to, playerent *d)
             case GUN_SNIPER: if(hitzone==2) { dam *= 3.0f; gib = true; }; break;
             case GUN_ASSAULT: if(hitzone==2) { dam *= 2.0f; gib = true; }; break;
             case GUN_CARBINE: if(hitzone==2) { dam *= 2.0f; gib = true; }; break;
+            case GUN_SHOTGUN: if(hitzone==2) { dam *= 1.2f; gib = true; }; break;
             case GUN_SUBGUN: if(hitzone==2) { dam *= 1.3f; gib = false; }; break;
             case GUN_PISTOL: if(hitzone==2) { dam *= 2.25f; gib = true; }; break;
             case GUN_AKIMBO: if(hitzone==2) { dam *= 1.5f; gib = true; }; break;
@@ -1044,7 +1137,7 @@ void weapon::attacksound()
 
 bool weapon::reload(bool autoreloaded)
 {
-    int effective_magsize = m_botslowtdm ? 1 : info.magsize;
+    int effective_magsize = (m_botslowtdm || m_slowtdm) ? 1 : info.magsize;
     if(mag>=effective_magsize || ammo<=0) return false;
     updatelastaction(owner);
     mag_before_reload = mag; // Store original mag count before reload
@@ -1176,6 +1269,8 @@ void weapon::equipplayer(playerent *pl)
     pl->weapons[GUN_ASSAULT] = new assaultrifle(pl);
     pl->weapons[GUN_GRENADE] = new grenades(pl);
     pl->weapons[GUN_KNIFE] = new knife(pl);
+    pl->weapons[GUN_KNIFE]->mag = knifecharges; // Set initial charges
+    pl->weapons[GUN_KNIFE]->ammo = 0; // Knife doesn't use reserve ammo
     pl->weapons[GUN_HANDS] = new hands(pl);
     pl->weapons[GUN_PISTOL] = new pistol(pl);
     pl->weapons[GUN_CARBINE] = new carbine(pl);
@@ -1184,6 +1279,7 @@ void weapon::equipplayer(playerent *pl)
     pl->weapons[GUN_SUBGUN] = new subgun(pl);
     pl->weapons[GUN_AKIMBO] = new akimbo(pl);
     pl->weapons[GUN_FLINTLOCK] = new flintlock(pl);
+    pl->weapons[GUN_HEALTHFOOD] = new healthfood(pl);
     pl->selectweapon(GUN_ASSAULT);
     pl->setprimary(GUN_ASSAULT);
     pl->setnextprimary(GUN_ASSAULT);
@@ -1512,13 +1608,31 @@ bool gun::attack(vec &targ)
     attackevent(owner, type);
 
     hits.setsize(0);
+
+    if (type == GUN_SHOTGUN) {
+        for (int i = 0; i < 13;i++) {
+            vec pelletTarget = to;
+            float perf = 0.40f + ((i%3) * 0.40f);
+            if (owner->type == ENT_BOT) {perf *= 0.07f;}
+            pelletTarget.x += (rnd(100) - 50) * perf;
+            pelletTarget.y += (rnd(100) - 50) * perf;
+            pelletTarget.z += (rnd(100) - 50) * perf;
+
+            raydamage(from, pelletTarget, owner);
+            attackfx(from, pelletTarget, 0);
+        }
+        attacksound();
+        //attacksound();
+    }
+    
     raydamage(from, to, owner);
     attackfx(from, to, 0);
+    sendshoot(from, to, attackmillis);
 
     gunwait = info.attackdelay;
     mag--;
 
-    sendshoot(from, to, attackmillis);
+    
 
     return true;
 }
@@ -1546,7 +1660,6 @@ shotgun::shotgun(playerent *owner) : gun(owner, GUN_SHOTGUN) {}
 
 void shotgun::attackphysics(vec &from, vec &to)
 {
-    createrays(from, to);
     gun::attackphysics(from, to);
 }
 
@@ -1557,12 +1670,14 @@ bool shotgun::attack(vec &targ)
 
 void shotgun::attackfx(const vec &from, const vec &to, int millis)
 {
-    loopi(SGRAYS) particle_splash(PART_SPARK, 5, 200, sgr[i].rv);
-
-    if(addbullethole(owner, from, to))
-        loopk(3) loopi(3) addbullethole(owner, from, sgr[k*SGRAYS+i*SGRAYS/3].rv, 0, false);
+    if(from.squareddist(to) > 0.07f)
+    {
+        addbullethole(owner, from, to);
+        addshotline(owner, from, to);
+        particle_trail(PART_SMOKE, 170, from, to);
+    }
+    particle_splash(PART_SPARK, 50, 200, to);
     adddynlight(owner, from, 4, 100, 50, 96, 80, 64);
-    attacksound();
 }
 
 bool shotgun::selectable() { return weapon::selectable() && ((!m_noprimary && this == owner->primweap) || this == owner->secweap); }
@@ -1676,6 +1791,71 @@ bool pistol::selectable() { return weapon::selectable() && ((!m_noprimary && thi
 flintlock::flintlock(playerent *owner) : gun(owner, GUN_FLINTLOCK) {}
 bool flintlock::selectable() { return weapon::selectable() && ((!m_noprimary && this == owner->primweap) || (!m_nopistol && this == owner->secweap)); }
 
+// healthfood
+
+healthfood::healthfood(playerent *owner) : gun(owner, GUN_HEALTHFOOD) {}
+
+bool healthfood::attack(vec &targ) 
+{ 
+    int attackmillis = lastmillis-owner->lastaction - gunwait;
+    if(attackmillis<0) return false;
+    
+    // Check if we just finished reloading (following standard pattern)
+    if(reloading)
+    {
+        // Heal the player
+        if(owner->health < 100)
+        {
+            owner->health = min(100, owner->health + info.damage);
+            // TODO: Add healing sound/effect
+        }
+        
+        // Reset to unloaded state for next use
+        mag = 0;
+    }
+    
+    // Clear reload state (following standard pattern)
+    gunwait = reloading = mag_before_reload = 0;
+    
+    // If unloaded and has ammo, and player is attacking, start consumption process
+    if(!mag && ammo > 0 && !reloading && owner->attacking)
+    {
+        reload(false);
+        return false;
+    }
+    
+    return false; // Never actually shoot
+}
+
+void healthfood::onselecting(bool sound)
+{
+    // Only play the sound, don't call parent which might trigger reload behavior
+    updatelastaction(owner);
+    bool local = (owner == player1);
+    if(sound) audiomgr.playsound(S_GUNCHANGE, owner, local ? SP_HIGH : SP_NORMAL);
+    
+    // Always start unloaded when equipped
+    mag = 0;
+    reloading = 0;
+    gunwait = 0; // Make sure no wait time is active
+}
+
+bool healthfood::reload(bool autoreloaded)
+{
+    // Only allow manual reload, not auto-reload
+    if(autoreloaded) return false;
+    
+    // Use default gun reload behavior
+    return gun::reload(autoreloaded);
+}
+
+void healthfood::checkautoreload()
+{
+    // Disable auto-reload for healthfood - it should only be consumed manually
+}
+
+bool healthfood::selectable() { return weapon::selectable(); }
+
 
 // akimbo
 
@@ -1693,7 +1873,7 @@ void akimbo::attackfx(const vec &from, const vec &to, int millis)
 
 void akimbo::onammopicked()
 {
-    akimbomillis = lastmillis + 30000;
+    akimbomillis = lastmillis + akimbotimer;
     if(owner==player1)
     {
         if(akimboautoswitch || owner->weaponsel->type==GUN_PISTOL)
@@ -1744,6 +1924,8 @@ bool knife::attack(vec &targ)
     owner->lastattackweapon = this;
     owner->attacking = false;
 
+
+
     vec from = owner->o;
     vec to = targ;
     from.z -= weaponbeloweye;
@@ -1751,7 +1933,7 @@ bool knife::attack(vec &targ)
     vec unitv;
     float dist = to.dist(from, unitv);
     unitv.div(dist);
-    unitv.mul(3); // punch range
+    unitv.mul(7); // punch range
     to = from;
     to.add(unitv);
     intersectgeometry(from,to);
@@ -1772,7 +1954,12 @@ int knife::modelanim() { return modelattacking() ? ANIM_GUN_SHOOT : ANIM_GUN_IDL
 
 void knife::drawstats() {}
 void knife::attackfx(const vec &from, const vec &to, int millis) { attacksound(); }
-void knife::renderstats() { }
+void knife::renderstats() 
+{
+    string gunstats;
+    formatstring(gunstats)("%d", mag); // Show current charges
+    draw_text(gunstats, HUDPOS_WEAPON + HUDPOS_NUMBERSPACING, 823);
+}
 
 // hands (null weapon state for sprinting)
 
