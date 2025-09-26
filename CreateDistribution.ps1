@@ -46,7 +46,7 @@ foreach ($item in $itemsToCopy) {
 Write-Host "`nCreating ZIP file..." -ForegroundColor Yellow
 
 # Create ZIP file
-$zipPath = "$env:USERPROFILE\Desktop\SillyShootingGame_v1.0.zip"
+$zipPath = "$env:USERPROFILE\Downloads\SillyShootingGame.zip"
 if (Test-Path $zipPath) {
     Remove-Item $zipPath -Force
 }
@@ -59,9 +59,12 @@ Write-Host "`nPackage created successfully!" -ForegroundColor Green
 Write-Host "Location: $zipPath" -ForegroundColor White
 Write-Host "Distribution folder: $destination" -ForegroundColor White
 
-Write-Host "1. Send them the ZIP file: SillyShootingGame_v1.0.zip" -ForegroundColor White
+Write-Host "`nIMPORTANT INSTALLATION INSTRUCTIONS:" -ForegroundColor Red
+Write-Host "1. Send them the ZIP file: SillyShootingGame.zip" -ForegroundColor White
 Write-Host "2. They extract it anywhere on their PC" -ForegroundColor White  
-Write-Host "3. They run SillyShootingGame.bat to play!" -ForegroundColor White
+Write-Host "3. FIRST TIME ONLY: Run bin_win32\oalinst.exe to install OpenAL 1.1" -ForegroundColor Yellow
+Write-Host "4. Then run SillyShootingGame.bat to play!" -ForegroundColor White
+Write-Host "`nNote: OpenAL 1.1 installation is required for audio to work properly." -ForegroundColor Cyan
 
 # Optional: Open the destination folder
 $openFolder = Read-Host "`nOpen destination folder? (y/n)"

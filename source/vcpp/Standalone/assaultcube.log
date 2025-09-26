@@ -1,4 +1,5 @@
-﻿  Generating code
+﻿  server.cpp
+  Generating code
   Not all modules are compiled with -Gy (function comdat), build without incremental LTCG.
   Finished generating code
   assaultcube.vcxproj -> C:\Users\onewi\grifting-goat\sillyShootingGame\bin_win32\ac_server.exe

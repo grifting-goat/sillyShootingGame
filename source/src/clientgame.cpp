@@ -992,6 +992,16 @@ void dokill(playerent *pl, playerent *act, bool gib, int gun)
         act->health = newhealth;
     }
 
+    // Healthfood ammo gain: give healthfood ammo on enemy kill (max 5, disabled in SOT style TDM)
+    if(!m_botslowtdm && !m_slowtdm && pl != act && !isteam(pl->team, act->team) && act == player1)
+    {
+        if(act->weapons[GUN_HEALTHFOOD] && act->weapons[GUN_HEALTHFOOD]->ammo < 5)
+        {
+            act->weapons[GUN_HEALTHFOOD]->ammo++;
+            act->ammo[GUN_HEALTHFOOD] = act->weapons[GUN_HEALTHFOOD]->ammo;
+        }
+    }
+
     // Auto reload: reload weapon after kill (disabled in SOT style TDM)
     extern int killreload;
     if(killreload && !m_botslowtdm && !m_slowtdm && pl != act && !isteam(pl->team, act->team) && act == player1)

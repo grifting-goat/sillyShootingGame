@@ -1,4 +1,8 @@
 ﻿  server.cpp
+  weapon.cpp
+C:\Users\onewi\grifting-goat\sillyShootingGame\source\src\weapon.cpp(1187,20): warning C4189: 'g': local variable is initialized but not referenced
+  (compiling source file '/src/weapon.cpp')
+  
   Generating code
   Not all modules are compiled with -Gy (function comdat), build without incremental LTCG.
   Finished generating code

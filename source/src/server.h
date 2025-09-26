@@ -542,7 +542,7 @@ guninfo guns[NUMGUNS] =
     { "pistol",  "Akimbo",       S_PISTOL,  S_RAKIMBO,  1000,   60,     18,  0,      0,   0,  0,   20,   40,   6,  5,   4,  15,   25,   115,  110,   true  },
     { "flintlock","Flintlock",   S_PISTOL,  S_RPISTOL,  2020,   320,    99,  20,     0,   0,  0,   400,   1,   6,  5,   6,  35,   58,   125,  600,   false },
     { "hands",   "Hands",        S_NULL,    S_NULL,     0,      450,    0,   0,      0,   0,  0,    0,   0,    0,  0,   0,   0,    0,    0,   0,     false },
-    { "healthfood", "Health Food", S_PISTOL, S_RPISTOL, 1300,     0,    45,   0,      0,   0,  0,    0,   1,   0,  0,   0,  0,   0,   0,  0,   false },
+    { "healthfood", "Health Food", S_PISTOL, S_RPISTOL, 1200,     0,    45,   0,      0,   0,  0,    0,   1,   0,  0,   0,  0,   0,   0,  0,   false },
 };
 
 const char *gunnames[NUMGUNS + 1];

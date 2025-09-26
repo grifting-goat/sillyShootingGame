@@ -29,7 +29,7 @@ static bool isLunging = false;
 static int lastChargeTime = 0;
 
 // Health siphon configuration
-VARP(healthsiphon, 0, 1, 1);               // Toggle: 0=disabled, 1=enabled
+VARP(healthsiphon, 0, 0, 1);               // Toggle: 0=disabled, 1=enabled
 VARP(siphonheal, 10, 30, 200);            // Amount of health to restore on kill
 
 // Kill reload configuration  
@@ -1632,8 +1632,6 @@ bool gun::attack(vec &targ)
     gunwait = info.attackdelay;
     mag--;
 
-    
-
     return true;
 }
 
@@ -1803,7 +1801,15 @@ bool healthfood::attack(vec &targ)
     // Check if we just finished reloading (following standard pattern)
     if(reloading)
     {
-        // Heal the player
+        // Simulate health pickup for proper server sync
+        if(owner == player1 && owner->health < 100)
+        {
+            // Send a fake item pickup to trigger server-side health validation
+            // Use -1 as a special entity ID to indicate healthfood healing
+            addmsg(SV_ITEMPICKUP, "ri", -1);
+        }
+        
+        // Heal the player locally (server will validate)
         if(owner->health < 100)
         {
             owner->health = min(100, owner->health + info.damage);
@@ -1812,6 +1818,13 @@ bool healthfood::attack(vec &targ)
         
         // Reset to unloaded state for next use
         mag = 0;
+        
+        // Check if we're out of ammo after consumption - if so, switch to knife
+        if(ammo <= 0 && owner == player1)
+        {
+            // Switch to knife automatically
+            owner->weaponswitch(owner->weapons[GUN_KNIFE]);
+        }
     }
     
     // Clear reload state (following standard pattern)
@@ -1854,7 +1867,7 @@ void healthfood::checkautoreload()
     // Disable auto-reload for healthfood - it should only be consumed manually
 }
 
-bool healthfood::selectable() { return weapon::selectable(); }
+bool healthfood::selectable() { return weapon::selectable() && ammo > 0; }
 
 
 // akimbo

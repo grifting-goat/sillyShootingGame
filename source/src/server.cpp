@@ -3539,9 +3539,23 @@ void process(ENetPacket *packet, int sender, int chan)
                 int n = getint(p);
                 if(!sg->arenaround || sg->arenaround - sg->gamemillis > 2000)
                 {
-                    gameevent &pickup = cl->addevent();
-                    pickup.type = GE_PICKUP;
-                    pickup.pickup.ent = n;
+                    // Special case: entity -1 indicates healthfood healing
+                    if(n == -1)
+                    {
+                        // Validate and apply healthfood healing
+                        if(cl->state.health < 100)
+                        {
+                            cl->state.health = min(100, cl->state.health + 45); // Same as healthfood damage value
+                            // Send proper damage message format for health sync: target, actor, gun, damage, armour, health
+                            sendf(-1, 1, "ri7", SV_DAMAGE, cl->clientnum, cl->clientnum, GUN_HEALTHFOOD, -45, cl->state.armour, cl->state.health);
+                        }
+                    }
+                    else
+                    {
+                        gameevent &pickup = cl->addevent();
+                        pickup.type = GE_PICKUP;
+                        pickup.pickup.ent = n;
+                    }
                 }
                 break;
             }
